@@ -1115,16 +1115,28 @@
     // ============================================================================
     // SETUP — paste your Firebase project config here
     // ============================================================================
-    const FIREBASE_CONFIG = {
-      apiKey: "AIzaSyATlcbZvEF4fWIvnU_13MpkKhQq5EVPAmg",
-      authDomain: "music-city-hunt.firebaseapp.com",
-      databaseURL: "https://music-city-hunt-2ce4b-default-rtdb.firebaseio.com",
-      projectId: "music-city-hunt-2ce4b",
-      storageBucket: "music-city-hunt-2ce4b.firebasestorage.app",
-      messagingSenderId: "920687343559",
-      appId: "1:920687343559:web:68314843b86a5d49534be2",
-      measurementId: "G-5G5H2BQQX4"
-    };
+    // Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyATlcbZvEF4fWIvnU_13MpkKhQq5EVPAmg",
+  authDomain: "music-city-hunt-2ce4b.firebaseapp.com",
+  databaseURL: "https://music-city-hunt-2ce4b-default-rtdb.firebaseio.com",
+  projectId: "music-city-hunt-2ce4b",
+  storageBucket: "music-city-hunt-2ce4b.firebasestorage.app",
+  messagingSenderId: "920687343559",
+  appId: "1:920687343559:web:68314843b86a5d49534be2",
+  measurementId: "G-5G5H2BQQX4"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
 
     // ============================================================================
     // GAME SETTINGS
