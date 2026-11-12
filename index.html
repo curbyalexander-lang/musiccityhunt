@@ -1213,6 +1213,32 @@
             text-align: left
         }
 
+        .hdr-btn {
+            flex: none;
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            background: rgba(255, 255, 255, .12)
+        }
+
+        .hdr-btn:active {
+            background: rgba(255, 255, 255, .22)
+        }
+
+        .hdr-btn svg {
+            width: 21px;
+            height: 21px
+        }
+
+        .game-brand {
+            flex: 1;
+            font-size: 19px
+        }
+
         .top .spacer {
             min-width: 70px
         }
@@ -2325,8 +2351,14 @@
     <!-- ============ PLAY A HUNT ============ -->
     <div id="screen-main" class="app-shell hidden">
         <header class="top">
-            <div class="brand" id="gameBrand"></div>
-            <button class="pill" id="scorePill"><b id="pillPts">0</b> pts · <span id="pillRank">—</span></button>
+            <button class="hdr-btn" id="homeBtn" type="button" aria-label="All hunts" title="All hunts">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5L12 3l9 7.5"/><path d="M5 9.5V21h5v-6h4v6h5V9.5"/></svg>
+            </button>
+            <div class="brand game-brand" id="gameBrand"></div>
+            <button class="hdr-btn hidden" id="orgBtn" type="button" aria-label="Organizer tools" title="Organizer tools">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+            </button>
+            <button class="pill" id="scorePill"><b id="pillPts">0</b> pts<span id="pillRank"></span></button>
         </header>
         <div id="testBanner" class="banner hidden">TEST MODE: tap the map to fake your location. These posts are kept
             separate from the real game.</div>
@@ -2639,6 +2671,7 @@
                 updateRole();
                 if (screen === "screen-picker") renderPicker();
                 if (screen === "screen-org") renderOrg();
+                if (screen === "screen-main") applyGameHeader();
             }, () => { });
             if (!DEMO) startGps();
             routeAfterLogin();
@@ -2829,11 +2862,14 @@
             $("#testBanner").classList.toggle("hidden", !TEST);
             if (DEMO) $("#testBanner").textContent = "DEMO: nothing is shared with anyone. Tap the map or use Jump here to move around.";
             $("#closedBanner").classList.toggle("hidden", isOpen());
+            $("#orgBtn").classList.toggle("hidden", !state.isOrg);
         }
 
         function wireMain() {
             $$(".tabs button").forEach(b => b.onclick = () => setTab(b.dataset.tab));
             $("#scorePill").onclick = openAccount;
+            $("#homeBtn").onclick = () => { closeSheet(); showPicker(); };
+            $("#orgBtn").onclick = () => { closeSheet(); openOrg(); };
             $("#recenter").onclick = () => { const p = currentPos(); if (p && map) map.setView([p.lat, p.lng], 16); else toast("No location yet"); };
             $("#showAll").onclick = () => { if (map) { map.closePopup(); fitAll(); } };
             $("#sheet").onclick = e => { if (e.target.id === "sheet") closeSheet(); };
@@ -2910,7 +2946,7 @@
             if (screen !== "screen-main") return;
             applyGameHeader();
             $("#pillPts").textContent = state.myPts;
-            $("#pillRank").textContent = state.myRank ? "#" + state.myRank : "unranked";
+            $("#pillRank").textContent = state.myRank ? " · #" + state.myRank : "";
             renderGps();
             if (state.tab === "hunt") renderHunt();
             if (state.tab === "feed") renderFeed();
