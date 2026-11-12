@@ -2431,15 +2431,18 @@
         // ============================================================================
         // SETUP
         // ============================================================================
+        import { initializeApp } from "firebase/app";
+        import { getAnalytics } from "firebase/analytics";
+
         const FIREBASE_CONFIG = {
-            apiKey: "AIzaSyCAdqITY-xF79yAAxKk8DEQuUrsHzv9FbU",
-            authDomain: "music-city-hunt.firebaseapp.com",
-            databaseURL: "https://music-city-hunt-default-rtdb.firebaseio.com",
-            projectId: "music-city-hunt",
-            storageBucket: "music-city-hunt.firebasestorage.app",
-            messagingSenderId: "103568905192",
-            appId: "1:103568905192:web:bf2789b8d34d76c711ca5d",
-            measurementId: "G-WKLDXHHYX9"
+            apiKey: "AIzaSyATlcbZvEF4fWIvnU_13MpkKhQq5EVPAmg",
+            authDomain: "music-city-hunt-2ce4b.firebaseapp.com",
+            databaseURL: "https://music-city-hunt-2ce4b-default-rtdb.firebaseio.com",
+            projectId: "music-city-hunt-2ce4b",
+            storageBucket: "music-city-hunt-2ce4b.firebasestorage.app",
+            messagingSenderId: "920687343559",
+            appId: "1:920687343559:web:68314843b86a5d49534be2",
+            measurementId: "G-5G5H2BQQX4"
         };
 
         // The app owner can manage every hunt and add organizers.
@@ -2447,6 +2450,9 @@
         const OWNER_EMAIL = "curbyalexander@gmail.com";
 
         // Name shown before someone picks a hunt (each hunt has its own name).
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
+
         const APP_TITLE = ["Photo", "Hunt"];
         const APP_TAGLINE = "GPS photo scavenger hunts. Get close to a stop, take the photo challenge, and score points.";
 
