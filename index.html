@@ -1,0 +1,3801 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset=utf8>
+    <meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover">
+    <style>
+        :root {
+            color-scheme: light;
+            box-sizing: border-box;
+            padding-top: env(safe-area-inset-top, 0px);
+            padding-bottom: env(safe-area-inset-bottom, 0px)
+        }
+
+        html {
+            scroll-padding-top: env(safe-area-inset-top, 0px)
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font: 14px -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #fff;
+            color: #000
+        }
+
+        img {
+            max-width: 100%
+        }
+
+        [hidden]:not([hidden=until-found i]) {
+            display: none !important
+        }
+    </style>
+</head>
+
+<body>
+    <title>Photo Hunt</title>
+    <style>
+        /* required styles */
+
+        .leaflet-pane,
+        .leaflet-tile,
+        .leaflet-marker-icon,
+        .leaflet-marker-shadow,
+        .leaflet-tile-container,
+        .leaflet-pane>svg,
+        .leaflet-pane>canvas,
+        .leaflet-zoom-box,
+        .leaflet-image-layer,
+        .leaflet-layer {
+            position: absolute;
+            left: 0;
+            top: 0;
+        }
+
+        .leaflet-container {
+            overflow: hidden;
+        }
+
+        .leaflet-tile,
+        .leaflet-marker-icon,
+        .leaflet-marker-shadow {
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            user-select: none;
+            -webkit-user-drag: none;
+        }
+
+        /* Prevents IE11 from highlighting tiles in blue */
+        .leaflet-tile::selection {
+            background: transparent;
+        }
+
+        /* Safari renders non-retina tile on retina better with this, but Chrome is worse */
+        .leaflet-safari .leaflet-tile {
+            image-rendering: -webkit-optimize-contrast;
+        }
+
+        /* hack that prevents hw layers "stretching" when loading new tiles */
+        .leaflet-safari .leaflet-tile-container {
+            width: 1600px;
+            height: 1600px;
+            -webkit-transform-origin: 0 0;
+        }
+
+        .leaflet-marker-icon,
+        .leaflet-marker-shadow {
+            display: block;
+        }
+
+        /* .leaflet-container svg: reset svg max-width decleration shipped in Joomla! (joomla.org) 3.x */
+        /* .leaflet-container img: map is broken in FF if you have max-width: 100% on tiles */
+        .leaflet-container .leaflet-overlay-pane svg {
+            max-width: none !important;
+            max-height: none !important;
+        }
+
+        .leaflet-container .leaflet-marker-pane img,
+        .leaflet-container .leaflet-shadow-pane img,
+        .leaflet-container .leaflet-tile-pane img,
+        .leaflet-container img.leaflet-image-layer,
+        .leaflet-container .leaflet-tile {
+            max-width: none !important;
+            max-height: none !important;
+            width: auto;
+            padding: 0;
+        }
+
+        .leaflet-container img.leaflet-tile {
+            /* See: https://bugs.chromium.org/p/chromium/issues/detail?id=600120 */
+            mix-blend-mode: plus-lighter;
+        }
+
+        .leaflet-container.leaflet-touch-zoom {
+            -ms-touch-action: pan-x pan-y;
+            touch-action: pan-x pan-y;
+        }
+
+        .leaflet-container.leaflet-touch-drag {
+            -ms-touch-action: pinch-zoom;
+            /* Fallback for FF which doesn't support pinch-zoom */
+            touch-action: none;
+            touch-action: pinch-zoom;
+        }
+
+        .leaflet-container.leaflet-touch-drag.leaflet-touch-zoom {
+            -ms-touch-action: none;
+            touch-action: none;
+        }
+
+        .leaflet-container {
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .leaflet-container a {
+            -webkit-tap-highlight-color: rgba(51, 181, 229, 0.4);
+        }
+
+        .leaflet-tile {
+            filter: inherit;
+            visibility: hidden;
+        }
+
+        .leaflet-tile-loaded {
+            visibility: inherit;
+        }
+
+        .leaflet-zoom-box {
+            width: 0;
+            height: 0;
+            -moz-box-sizing: border-box;
+            box-sizing: border-box;
+            z-index: 800;
+        }
+
+        /* workaround for https://bugzilla.mozilla.org/show_bug.cgi?id=888319 */
+        .leaflet-overlay-pane svg {
+            -moz-user-select: none;
+        }
+
+        .leaflet-pane {
+            z-index: 400;
+        }
+
+        .leaflet-tile-pane {
+            z-index: 200;
+        }
+
+        .leaflet-overlay-pane {
+            z-index: 400;
+        }
+
+        .leaflet-shadow-pane {
+            z-index: 500;
+        }
+
+        .leaflet-marker-pane {
+            z-index: 600;
+        }
+
+        .leaflet-tooltip-pane {
+            z-index: 650;
+        }
+
+        .leaflet-popup-pane {
+            z-index: 700;
+        }
+
+        .leaflet-map-pane canvas {
+            z-index: 100;
+        }
+
+        .leaflet-map-pane svg {
+            z-index: 200;
+        }
+
+        .leaflet-vml-shape {
+            width: 1px;
+            height: 1px;
+        }
+
+        .lvml {
+            behavior: url(#default#VML);
+            display: inline-block;
+            position: absolute;
+        }
+
+
+        /* control positioning */
+
+        .leaflet-control {
+            position: relative;
+            z-index: 800;
+            pointer-events: visiblePainted;
+            /* IE 9-10 doesn't have auto */
+            pointer-events: auto;
+        }
+
+        .leaflet-top,
+        .leaflet-bottom {
+            position: absolute;
+            z-index: 1000;
+            pointer-events: none;
+        }
+
+        .leaflet-top {
+            top: 0;
+        }
+
+        .leaflet-right {
+            right: 0;
+        }
+
+        .leaflet-bottom {
+            bottom: 0;
+        }
+
+        .leaflet-left {
+            left: 0;
+        }
+
+        .leaflet-control {
+            float: left;
+            clear: both;
+        }
+
+        .leaflet-right .leaflet-control {
+            float: right;
+        }
+
+        .leaflet-top .leaflet-control {
+            margin-top: 10px;
+        }
+
+        .leaflet-bottom .leaflet-control {
+            margin-bottom: 10px;
+        }
+
+        .leaflet-left .leaflet-control {
+            margin-left: 10px;
+        }
+
+        .leaflet-right .leaflet-control {
+            margin-right: 10px;
+        }
+
+
+        /* zoom and fade animations */
+
+        .leaflet-fade-anim .leaflet-popup {
+            opacity: 0;
+            -webkit-transition: opacity 0.2s linear;
+            -moz-transition: opacity 0.2s linear;
+            transition: opacity 0.2s linear;
+        }
+
+        .leaflet-fade-anim .leaflet-map-pane .leaflet-popup {
+            opacity: 1;
+        }
+
+        .leaflet-zoom-animated {
+            -webkit-transform-origin: 0 0;
+            -ms-transform-origin: 0 0;
+            transform-origin: 0 0;
+        }
+
+        svg.leaflet-zoom-animated {
+            will-change: transform;
+        }
+
+        .leaflet-zoom-anim .leaflet-zoom-animated {
+            -webkit-transition: -webkit-transform 0.25s cubic-bezier(0, 0, 0.25, 1);
+            -moz-transition: -moz-transform 0.25s cubic-bezier(0, 0, 0.25, 1);
+            transition: transform 0.25s cubic-bezier(0, 0, 0.25, 1);
+        }
+
+        .leaflet-zoom-anim .leaflet-tile,
+        .leaflet-pan-anim .leaflet-tile {
+            -webkit-transition: none;
+            -moz-transition: none;
+            transition: none;
+        }
+
+        .leaflet-zoom-anim .leaflet-zoom-hide {
+            visibility: hidden;
+        }
+
+
+        /* cursors */
+
+        .leaflet-interactive {
+            cursor: pointer;
+        }
+
+        .leaflet-grab {
+            cursor: -webkit-grab;
+            cursor: -moz-grab;
+            cursor: grab;
+        }
+
+        .leaflet-crosshair,
+        .leaflet-crosshair .leaflet-interactive {
+            cursor: crosshair;
+        }
+
+        .leaflet-popup-pane,
+        .leaflet-control {
+            cursor: auto;
+        }
+
+        .leaflet-dragging .leaflet-grab,
+        .leaflet-dragging .leaflet-grab .leaflet-interactive,
+        .leaflet-dragging .leaflet-marker-draggable {
+            cursor: move;
+            cursor: -webkit-grabbing;
+            cursor: -moz-grabbing;
+            cursor: grabbing;
+        }
+
+        /* marker & overlays interactivity */
+        .leaflet-marker-icon,
+        .leaflet-marker-shadow,
+        .leaflet-image-layer,
+        .leaflet-pane>svg path,
+        .leaflet-tile-container {
+            pointer-events: none;
+        }
+
+        .leaflet-marker-icon.leaflet-interactive,
+        .leaflet-image-layer.leaflet-interactive,
+        .leaflet-pane>svg path.leaflet-interactive,
+        svg.leaflet-image-layer.leaflet-interactive path {
+            pointer-events: visiblePainted;
+            /* IE 9-10 doesn't have auto */
+            pointer-events: auto;
+        }
+
+        /* visual tweaks */
+
+        .leaflet-container {
+            background: #ddd;
+            outline-offset: 1px;
+        }
+
+        .leaflet-container a {
+            color: #0078A8;
+        }
+
+        .leaflet-zoom-box {
+            border: 2px dotted #38f;
+            background: rgba(255, 255, 255, 0.5);
+        }
+
+
+        /* general typography */
+        .leaflet-container {
+            font-family: "Helvetica Neue", Arial, Helvetica, sans-serif;
+            font-size: 12px;
+            font-size: 0.75rem;
+            line-height: 1.5;
+        }
+
+
+        /* general toolbar styles */
+
+        .leaflet-bar {
+            box-shadow: 0 1px 5px rgba(0, 0, 0, 0.65);
+            border-radius: 4px;
+        }
+
+        .leaflet-bar a {
+            background-color: #fff;
+            border-bottom: 1px solid #ccc;
+            width: 26px;
+            height: 26px;
+            line-height: 26px;
+            display: block;
+            text-align: center;
+            text-decoration: none;
+            color: black;
+        }
+
+        .leaflet-bar a,
+        .leaflet-control-layers-toggle {
+            background-position: 50% 50%;
+            background-repeat: no-repeat;
+            display: block;
+        }
+
+        .leaflet-bar a:hover,
+        .leaflet-bar a:focus {
+            background-color: #f4f4f4;
+        }
+
+        .leaflet-bar a:first-child {
+            border-top-left-radius: 4px;
+            border-top-right-radius: 4px;
+        }
+
+        .leaflet-bar a:last-child {
+            border-bottom-left-radius: 4px;
+            border-bottom-right-radius: 4px;
+            border-bottom: none;
+        }
+
+        .leaflet-bar a.leaflet-disabled {
+            cursor: default;
+            background-color: #f4f4f4;
+            color: #bbb;
+        }
+
+        .leaflet-touch .leaflet-bar a {
+            width: 30px;
+            height: 30px;
+            line-height: 30px;
+        }
+
+        .leaflet-touch .leaflet-bar a:first-child {
+            border-top-left-radius: 2px;
+            border-top-right-radius: 2px;
+        }
+
+        .leaflet-touch .leaflet-bar a:last-child {
+            border-bottom-left-radius: 2px;
+            border-bottom-right-radius: 2px;
+        }
+
+        /* zoom control */
+
+        .leaflet-control-zoom-in,
+        .leaflet-control-zoom-out {
+            font: bold 18px 'Lucida Console', Monaco, monospace;
+            text-indent: 1px;
+        }
+
+        .leaflet-touch .leaflet-control-zoom-in,
+        .leaflet-touch .leaflet-control-zoom-out {
+            font-size: 22px;
+        }
+
+
+        /* layers control */
+
+        .leaflet-control-layers {
+            box-shadow: 0 1px 5px rgba(0, 0, 0, 0.4);
+            background: #fff;
+            border-radius: 5px;
+        }
+
+        .leaflet-control-layers-toggle {
+            background-image: url(images/layers.png);
+            width: 36px;
+            height: 36px;
+        }
+
+        .leaflet-retina .leaflet-control-layers-toggle {
+            background-image: url(images/layers-2x.png);
+            background-size: 26px 26px;
+        }
+
+        .leaflet-touch .leaflet-control-layers-toggle {
+            width: 44px;
+            height: 44px;
+        }
+
+        .leaflet-control-layers .leaflet-control-layers-list,
+        .leaflet-control-layers-expanded .leaflet-control-layers-toggle {
+            display: none;
+        }
+
+        .leaflet-control-layers-expanded .leaflet-control-layers-list {
+            display: block;
+            position: relative;
+        }
+
+        .leaflet-control-layers-expanded {
+            padding: 6px 10px 6px 6px;
+            color: #333;
+            background: #fff;
+        }
+
+        .leaflet-control-layers-scrollbar {
+            overflow-y: scroll;
+            overflow-x: hidden;
+            padding-right: 5px;
+        }
+
+        .leaflet-control-layers-selector {
+            margin-top: 2px;
+            position: relative;
+            top: 1px;
+        }
+
+        .leaflet-control-layers label {
+            display: block;
+            font-size: 13px;
+            font-size: 1.08333em;
+        }
+
+        .leaflet-control-layers-separator {
+            height: 0;
+            border-top: 1px solid #ddd;
+            margin: 5px -10px 5px -6px;
+        }
+
+        /* Default icon URLs */
+        .leaflet-default-icon-path {
+            /* used only in path-guessing heuristic, see L.Icon.Default */
+            background-image: url(images/marker-icon.png);
+        }
+
+
+        /* attribution and scale controls */
+
+        .leaflet-container .leaflet-control-attribution {
+            background: #fff;
+            background: rgba(255, 255, 255, 0.8);
+            margin: 0;
+        }
+
+        .leaflet-control-attribution,
+        .leaflet-control-scale-line {
+            padding: 0 5px;
+            color: #333;
+            line-height: 1.4;
+        }
+
+        .leaflet-control-attribution a {
+            text-decoration: none;
+        }
+
+        .leaflet-control-attribution a:hover,
+        .leaflet-control-attribution a:focus {
+            text-decoration: underline;
+        }
+
+        .leaflet-attribution-flag {
+            display: inline !important;
+            vertical-align: baseline !important;
+            width: 1em;
+            height: 0.6669em;
+        }
+
+        .leaflet-left .leaflet-control-scale {
+            margin-left: 5px;
+        }
+
+        .leaflet-bottom .leaflet-control-scale {
+            margin-bottom: 5px;
+        }
+
+        .leaflet-control-scale-line {
+            border: 2px solid #777;
+            border-top: none;
+            line-height: 1.1;
+            padding: 2px 5px 1px;
+            white-space: nowrap;
+            -moz-box-sizing: border-box;
+            box-sizing: border-box;
+            background: rgba(255, 255, 255, 0.8);
+            text-shadow: 1px 1px #fff;
+        }
+
+        .leaflet-control-scale-line:not(:first-child) {
+            border-top: 2px solid #777;
+            border-bottom: none;
+            margin-top: -2px;
+        }
+
+        .leaflet-control-scale-line:not(:first-child):not(:last-child) {
+            border-bottom: 2px solid #777;
+        }
+
+        .leaflet-touch .leaflet-control-attribution,
+        .leaflet-touch .leaflet-control-layers,
+        .leaflet-touch .leaflet-bar {
+            box-shadow: none;
+        }
+
+        .leaflet-touch .leaflet-control-layers,
+        .leaflet-touch .leaflet-bar {
+            border: 2px solid rgba(0, 0, 0, 0.2);
+            background-clip: padding-box;
+        }
+
+
+        /* popup */
+
+        .leaflet-popup {
+            position: absolute;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .leaflet-popup-content-wrapper {
+            padding: 1px;
+            text-align: left;
+            border-radius: 12px;
+        }
+
+        .leaflet-popup-content {
+            margin: 13px 24px 13px 20px;
+            line-height: 1.3;
+            font-size: 13px;
+            font-size: 1.08333em;
+            min-height: 1px;
+        }
+
+        .leaflet-popup-content p {
+            margin: 17px 0;
+            margin: 1.3em 0;
+        }
+
+        .leaflet-popup-tip-container {
+            width: 40px;
+            height: 20px;
+            position: absolute;
+            left: 50%;
+            margin-top: -1px;
+            margin-left: -20px;
+            overflow: hidden;
+            pointer-events: none;
+        }
+
+        .leaflet-popup-tip {
+            width: 17px;
+            height: 17px;
+            padding: 1px;
+
+            margin: -10px auto 0;
+            pointer-events: auto;
+
+            -webkit-transform: rotate(45deg);
+            -moz-transform: rotate(45deg);
+            -ms-transform: rotate(45deg);
+            transform: rotate(45deg);
+        }
+
+        .leaflet-popup-content-wrapper,
+        .leaflet-popup-tip {
+            background: white;
+            color: #333;
+            box-shadow: 0 3px 14px rgba(0, 0, 0, 0.4);
+        }
+
+        .leaflet-container a.leaflet-popup-close-button {
+            position: absolute;
+            top: 0;
+            right: 0;
+            border: none;
+            text-align: center;
+            width: 24px;
+            height: 24px;
+            font: 16px/24px Tahoma, Verdana, sans-serif;
+            color: #757575;
+            text-decoration: none;
+            background: transparent;
+        }
+
+        .leaflet-container a.leaflet-popup-close-button:hover,
+        .leaflet-container a.leaflet-popup-close-button:focus {
+            color: #585858;
+        }
+
+        .leaflet-popup-scrolled {
+            overflow: auto;
+        }
+
+        .leaflet-oldie .leaflet-popup-content-wrapper {
+            -ms-zoom: 1;
+        }
+
+        .leaflet-oldie .leaflet-popup-tip {
+            width: 24px;
+            margin: 0 auto;
+
+            -ms-filter: "progid:DXImageTransform.Microsoft.Matrix(M11=0.70710678, M12=0.70710678, M21=-0.70710678, M22=0.70710678)";
+            filter: progid:DXImageTransform.Microsoft.Matrix(M11=0.70710678, M12=0.70710678, M21=-0.70710678, M22=0.70710678);
+        }
+
+        .leaflet-oldie .leaflet-control-zoom,
+        .leaflet-oldie .leaflet-control-layers,
+        .leaflet-oldie .leaflet-popup-content-wrapper,
+        .leaflet-oldie .leaflet-popup-tip {
+            border: 1px solid #999;
+        }
+
+
+        /* div icon */
+
+        .leaflet-div-icon {
+            background: #fff;
+            border: 1px solid #666;
+        }
+
+
+        /* Tooltip */
+        /* Base styles for the element that has a tooltip */
+        .leaflet-tooltip {
+            position: absolute;
+            padding: 6px;
+            background-color: #fff;
+            border: 1px solid #fff;
+            border-radius: 3px;
+            color: #222;
+            white-space: nowrap;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+            pointer-events: none;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+        }
+
+        .leaflet-tooltip.leaflet-interactive {
+            cursor: pointer;
+            pointer-events: auto;
+        }
+
+        .leaflet-tooltip-top:before,
+        .leaflet-tooltip-bottom:before,
+        .leaflet-tooltip-left:before,
+        .leaflet-tooltip-right:before {
+            position: absolute;
+            pointer-events: none;
+            border: 6px solid transparent;
+            background: transparent;
+            content: "";
+        }
+
+        /* Directions */
+
+        .leaflet-tooltip-bottom {
+            margin-top: 6px;
+        }
+
+        .leaflet-tooltip-top {
+            margin-top: -6px;
+        }
+
+        .leaflet-tooltip-bottom:before,
+        .leaflet-tooltip-top:before {
+            left: 50%;
+            margin-left: -6px;
+        }
+
+        .leaflet-tooltip-top:before {
+            bottom: 0;
+            margin-bottom: -12px;
+            border-top-color: #fff;
+        }
+
+        .leaflet-tooltip-bottom:before {
+            top: 0;
+            margin-top: -12px;
+            margin-left: -6px;
+            border-bottom-color: #fff;
+        }
+
+        .leaflet-tooltip-left {
+            margin-left: -6px;
+        }
+
+        .leaflet-tooltip-right {
+            margin-left: 6px;
+        }
+
+        .leaflet-tooltip-left:before,
+        .leaflet-tooltip-right:before {
+            top: 50%;
+            margin-top: -6px;
+        }
+
+        .leaflet-tooltip-left:before {
+            right: 0;
+            margin-right: -12px;
+            border-left-color: #fff;
+        }
+
+        .leaflet-tooltip-right:before {
+            left: 0;
+            margin-left: -12px;
+            border-right-color: #fff;
+        }
+
+        /* Printing */
+
+        @media print {
+
+            /* Prevent printers from removing background-images of controls. */
+            .leaflet-control {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+        }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Rye&family=Inter:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <style>
+        /* Layout: one-column phone app; a dark ink header bar over cream pages, with sheets that slide up from the bottom. */
+        :root {
+            --ink: #1d2235;
+            --ink2: #3a3f55;
+            --muted: #6e6c78;
+            --cream: #fbf6ec;
+            --card: #ffffff;
+            --line: #ece3d1;
+            --coral: #e2553b;
+            --coral-dk: #c23f27;
+            --gold: #e9a93a;
+            --teal: #1f8a84;
+            --teal-bg: #e3f3f1;
+            --gold-bg: #fbf0d9;
+            --coral-bg: #fde8e3;
+            --danger: #b3261e;
+            --danger-bg: #fff6f4;
+            --nav-h: 64px;
+            --top-h: 56px;
+            --radius: 16px;
+            --safe-b: env(safe-area-inset-bottom, 0px);
+            --safe-t: env(safe-area-inset-top, 0px);
+            color-scheme: light;
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent
+        }
+
+        html,
+        body {
+            margin: 0;
+            height: 100%;
+            background: var(--cream);
+            color: var(--ink);
+            font-family: Inter, system-ui, -apple-system, sans-serif;
+            font-size: 16px;
+            line-height: 1.4
+        }
+
+        button {
+            font: inherit;
+            color: inherit;
+            border: 0;
+            background: none;
+            cursor: pointer
+        }
+
+        button:focus-visible,
+        input:focus-visible,
+        select:focus-visible,
+        textarea:focus-visible {
+            outline: 2px solid var(--teal);
+            outline-offset: 2px
+        }
+
+        input,
+        textarea,
+        select {
+            font: inherit;
+            color: var(--ink)
+        }
+
+        .hidden {
+            display: none !important
+        }
+
+        a {
+            color: var(--teal)
+        }
+
+        /* ---------- simple scrolling screens (setup / sign-in / picker) ---------- */
+        .screen {
+            min-height: 100%;
+            padding: calc(28px + var(--safe-t)) 18px 40px;
+            max-width: 520px;
+            margin: 0 auto
+        }
+
+        .logo {
+            font-family: Rye, serif;
+            font-size: 34px;
+            line-height: 1.05;
+            color: var(--ink);
+            margin: 6px 0 4px;
+            text-wrap: balance
+        }
+
+        .logo span {
+            color: var(--coral)
+        }
+
+        .tag {
+            color: var(--muted);
+            margin: 0 0 22px
+        }
+
+        .card {
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            padding: 18px;
+            box-shadow: 0 1px 0 rgba(29, 34, 53, .04)
+        }
+
+        .field {
+            display: block;
+            margin: 0 0 14px;
+            min-width: 0
+        }
+
+        .field>span {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--ink2);
+            margin-bottom: 6px
+        }
+
+        .field input,
+        .field textarea,
+        .field select {
+            width: 100%;
+            padding: 13px 14px;
+            border: 1.5px solid var(--line);
+            border-radius: 12px;
+            background: #fffdf8;
+            outline: none;
+            font-size: 16px
+        }
+
+        .field input:focus,
+        .field textarea:focus,
+        .field select:focus {
+            border-color: var(--teal)
+        }
+
+        .field input:disabled {
+            color: var(--muted);
+            background: #f4efe4
+        }
+
+        .field-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px
+        }
+
+        .hint {
+            font-size: 12.5px;
+            color: var(--muted);
+            margin-top: 5px
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+            padding: 14px 16px;
+            border-radius: 12px;
+            background: var(--coral);
+            color: #fff;
+            font-weight: 700;
+            font-size: 16px
+        }
+
+        .btn:active {
+            background: var(--coral-dk)
+        }
+
+        .btn[disabled] {
+            opacity: .55
+        }
+
+        .btn.ghost {
+            background: transparent;
+            color: var(--ink);
+            border: 1.5px solid var(--line)
+        }
+
+        .btn.teal {
+            background: var(--teal)
+        }
+
+        .btn.danger {
+            background: var(--danger)
+        }
+
+        .btn.small {
+            width: auto;
+            padding: 9px 14px;
+            font-size: 14px;
+            border-radius: 10px
+        }
+
+        .stack {
+            display: grid;
+            gap: 8px
+        }
+
+        .btn-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px
+        }
+
+        .seg {
+            display: flex;
+            background: #efe7d6;
+            border-radius: 12px;
+            padding: 4px;
+            margin-bottom: 16px
+        }
+
+        .seg button {
+            flex: 1;
+            padding: 10px;
+            border-radius: 9px;
+            font-weight: 600;
+            color: var(--muted)
+        }
+
+        .seg button.on {
+            background: #fff;
+            color: var(--ink);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, .08)
+        }
+
+        .err {
+            color: var(--coral-dk);
+            font-size: 14px;
+            min-height: 20px;
+            margin: 4px 0 10px
+        }
+
+        .linkbtn {
+            color: var(--teal);
+            font-weight: 600;
+            font-size: 14px;
+            padding: 6px 0
+        }
+
+        .linkbtn.danger-link {
+            color: var(--danger)
+        }
+
+        .steps {
+            padding-left: 20px;
+            margin: 0
+        }
+
+        .steps li {
+            margin-bottom: 10px
+        }
+
+        code {
+            background: #f1eadb;
+            padding: 1px 5px;
+            border-radius: 5px;
+            font-size: .92em
+        }
+
+        .chip {
+            font-size: 11.5px;
+            font-weight: 700;
+            padding: 3px 9px;
+            border-radius: 99px;
+            white-space: nowrap;
+            display: inline-block
+        }
+
+        .chip.open {
+            background: var(--teal-bg);
+            color: var(--teal)
+        }
+
+        .chip.closed {
+            background: #ece7dc;
+            color: var(--muted)
+        }
+
+        .chip.home {
+            background: var(--ink);
+            color: #fff;
+            margin-left: 4px;
+            vertical-align: 2px
+        }
+
+        #demoNote {
+            background: var(--gold-bg);
+            color: #7a5210;
+            border-radius: 10px;
+            padding: 10px 12px;
+            margin: 0 0 14px;
+            font-size: 13.5px
+        }
+
+        /* hunt picker */
+        .game-card {
+            display: block;
+            width: 100%;
+            text-align: left;
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            padding: 16px;
+            margin-bottom: 10px
+        }
+
+        .game-card:active {
+            background: #fffaf0
+        }
+
+        .game-card h3 {
+            font-family: Rye, serif;
+            font-weight: 400;
+            font-size: 22px;
+            line-height: 1.15;
+            margin: 0 0 4px
+        }
+
+        .game-card h3 span {
+            color: var(--coral)
+        }
+
+        .game-card p {
+            margin: 0;
+            color: var(--muted);
+            font-size: 14px
+        }
+
+        .game-card .go {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 10px;
+            font-weight: 700;
+            color: var(--teal);
+            font-size: 14px
+        }
+
+        .picker-foot {
+            display: grid;
+            gap: 8px;
+            margin-top: 18px;
+            text-align: center
+        }
+
+        /* ---------- full-height app screens ---------- */
+        .app-shell {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            flex-direction: column
+        }
+
+        .top {
+            flex: none;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: calc(8px + var(--safe-t)) 16px 8px;
+            background: var(--ink);
+            color: #fff;
+            min-height: var(--top-h)
+        }
+
+        .brand {
+            font-family: Rye, serif;
+            font-size: 21px;
+            letter-spacing: .3px;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap
+        }
+
+        .brand span {
+            color: var(--gold)
+        }
+
+        .back {
+            color: #fff;
+            font-weight: 600;
+            font-size: 15px;
+            padding: 6px 0;
+            min-width: 70px;
+            text-align: left
+        }
+
+        .top .spacer {
+            min-width: 70px
+        }
+
+        .pill {
+            flex: none;
+            background: rgba(255, 255, 255, .12);
+            color: #fff;
+            border-radius: 999px;
+            padding: 7px 13px;
+            font-weight: 700;
+            font-size: 14px;
+            display: flex;
+            gap: 6px;
+            align-items: center
+        }
+
+        .pill b {
+            color: var(--gold)
+        }
+
+        .banner {
+            flex: none;
+            background: var(--gold);
+            color: var(--ink);
+            font-size: 13px;
+            font-weight: 700;
+            text-align: center;
+            padding: 6px 10px
+        }
+
+        .banner.closed {
+            background: #ece7dc;
+            color: var(--ink2)
+        }
+
+        .gps {
+            flex: none;
+            font-size: 13px;
+            padding: 7px 16px;
+            background: #f3ecdd;
+            color: var(--ink2);
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            border-bottom: 1px solid var(--line)
+        }
+
+        .gps .dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: #b9b3a6;
+            flex: none
+        }
+
+        .gps.ok .dot {
+            background: #2bb673;
+            box-shadow: 0 0 0 3px rgba(43, 182, 115, .2)
+        }
+
+        .gps.warn .dot {
+            background: var(--gold)
+        }
+
+        .gps.bad .dot {
+            background: var(--coral)
+        }
+
+        main {
+            flex: 1;
+            position: relative;
+            overflow: hidden
+        }
+
+        .tab {
+            position: absolute;
+            inset: 0;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            padding: 14px 14px 24px
+        }
+
+        #tab-map {
+            padding: 0
+        }
+
+        #map {
+            position: absolute;
+            inset: 0
+        }
+
+        .scroll {
+            flex: 1;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            padding: 14px 14px 28px
+        }
+
+        .tabs {
+            flex: none;
+            display: flex;
+            background: #fff;
+            border-top: 1px solid var(--line);
+            padding-bottom: var(--safe-b)
+        }
+
+        .tabs button {
+            flex: 1;
+            height: var(--nav-h);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 3px;
+            font-size: 11.5px;
+            font-weight: 600;
+            color: var(--muted)
+        }
+
+        .tabs button svg {
+            width: 24px;
+            height: 24px
+        }
+
+        .tabs button.on {
+            color: var(--coral)
+        }
+
+        .wrap {
+            max-width: 560px;
+            margin: 0 auto
+        }
+
+        .savebar {
+            flex: none;
+            background: #fff;
+            border-top: 1px solid var(--line);
+            padding: 10px 14px calc(10px + var(--safe-b))
+        }
+
+        .savebar .wrap>.err {
+            margin: 0 0 8px;
+            min-height: 0
+        }
+
+        .savebar .wrap>.err:empty {
+            display: none
+        }
+
+        /* dashboard */
+        .dash {
+            background: var(--ink);
+            color: #fff;
+            border-radius: var(--radius);
+            padding: 16px;
+            margin-bottom: 14px;
+            position: relative;
+            overflow: hidden
+        }
+
+        .dash::after {
+            content: "";
+            position: absolute;
+            right: -30px;
+            top: -30px;
+            width: 130px;
+            height: 130px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(233, 169, 58, .35), transparent 70%)
+        }
+
+        .dash .hello {
+            font-size: 13px;
+            opacity: .75
+        }
+
+        .dash .who {
+            font-weight: 800;
+            font-size: 20px;
+            margin: 2px 0 12px
+        }
+
+        .stats {
+            display: flex;
+            gap: 10px;
+            position: relative;
+            z-index: 1
+        }
+
+        .stat {
+            flex: 1;
+            background: rgba(255, 255, 255, .08);
+            border-radius: 12px;
+            padding: 10px
+        }
+
+        .stat .n {
+            font-size: 22px;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums
+        }
+
+        .stat .l {
+            font-size: 11.5px;
+            opacity: .7;
+            text-transform: uppercase;
+            letter-spacing: .5px
+        }
+
+        .bar {
+            height: 8px;
+            background: rgba(255, 255, 255, .15);
+            border-radius: 99px;
+            margin-top: 12px;
+            overflow: hidden
+        }
+
+        .bar i {
+            display: block;
+            height: 100%;
+            background: linear-gradient(90deg, var(--gold), var(--coral));
+            border-radius: 99px;
+            transition: width .4s
+        }
+
+        .sect {
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: .8px;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin: 18px 2px 8px
+        }
+
+        .sect-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin: 22px 2px 10px
+        }
+
+        .sect-row .sect {
+            margin: 0
+        }
+
+        .pts {
+            flex: none;
+            width: 52px;
+            height: 52px;
+            border-radius: 14px;
+            background: var(--gold-bg);
+            color: #9a6512;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 18px;
+            line-height: 1;
+            font-variant-numeric: tabular-nums
+        }
+
+        .pts small {
+            font-size: 10px;
+            font-weight: 700;
+            margin-top: 3px;
+            letter-spacing: .4px
+        }
+
+        .stop {
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            padding: 14px;
+            margin-bottom: 10px;
+            display: flex;
+            gap: 12px
+        }
+
+        .stop.inrange {
+            border: 2px solid var(--teal);
+            box-shadow: 0 4px 14px rgba(31, 138, 132, .15)
+        }
+
+        .stop.found {
+            background: #fbfaf6
+        }
+
+        .stop.found .pts {
+            background: var(--teal-bg);
+            color: var(--teal)
+        }
+
+        .stop .body {
+            flex: 1;
+            min-width: 0
+        }
+
+        .stop h3 {
+            margin: 0;
+            font-size: 16px;
+            line-height: 1.25
+        }
+
+        .stop .about {
+            font-size: 13px;
+            color: var(--muted);
+            margin: 2px 0 6px
+        }
+
+        .stop .task {
+            font-size: 13.5px;
+            background: var(--coral-bg);
+            color: var(--coral-dk);
+            display: inline-block;
+            padding: 3px 9px;
+            border-radius: 8px;
+            font-weight: 600
+        }
+
+        .stop .meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-top: 10px;
+            font-size: 13px;
+            color: var(--ink2)
+        }
+
+        .stop .meta a {
+            font-weight: 600;
+            text-decoration: none
+        }
+
+        .badge {
+            font-size: 12px;
+            font-weight: 700;
+            padding: 4px 9px;
+            border-radius: 99px
+        }
+
+        .badge.found {
+            background: var(--teal-bg);
+            color: var(--teal)
+        }
+
+        /* feed */
+        .post {
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            margin-bottom: 14px;
+            overflow: hidden
+        }
+
+        .post .hd {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 14px
+        }
+
+        .post .hd .who {
+            min-width: 0;
+            flex: 1
+        }
+
+        .av {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            color: #fff;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            flex: none
+        }
+
+        .post .hd .nm {
+            font-weight: 700;
+            font-size: 14.5px
+        }
+
+        .post .hd .sub {
+            font-size: 12.5px;
+            color: var(--muted)
+        }
+
+        .post .hd .plus {
+            font-weight: 800;
+            color: var(--teal);
+            font-size: 14px
+        }
+
+        .post .hd .rm {
+            font-size: 13px;
+            margin-left: 6px
+        }
+
+        .ph {
+            width: 100%;
+            aspect-ratio: 4/3;
+            background: #efe8d9 center/cover no-repeat;
+            display: block;
+            cursor: pointer
+        }
+
+        .post .cap {
+            padding: 10px 14px 14px;
+            font-size: 14.5px
+        }
+
+        .post .confirm {
+            padding: 10px 14px;
+            background: var(--danger-bg);
+            border-top: 1px solid #f1c5bb;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            font-size: 14px
+        }
+
+        .post .confirm span {
+            flex: 1;
+            min-width: 150px
+        }
+
+        .empty {
+            text-align: center;
+            color: var(--muted);
+            padding: 40px 20px
+        }
+
+        .empty.small {
+            padding: 20px;
+            background: #fffdf8;
+            border: 1.5px dashed var(--line);
+            border-radius: 14px
+        }
+
+        /* leaderboard */
+        .rank {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 11px 14px;
+            margin-bottom: 8px
+        }
+
+        .rank.me {
+            border: 2px solid var(--coral)
+        }
+
+        .rank .pos {
+            width: 28px;
+            text-align: center;
+            font-weight: 800;
+            color: var(--muted)
+        }
+
+        .rank .pos.m {
+            font-size: 22px
+        }
+
+        .rank .nm {
+            flex: 1;
+            font-weight: 700;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap
+        }
+
+        .rank .nm small {
+            display: block;
+            font-weight: 500;
+            color: var(--muted);
+            font-size: 12px
+        }
+
+        .rank .sc {
+            font-weight: 800;
+            font-size: 18px;
+            font-variant-numeric: tabular-nums
+        }
+
+        /* organizer */
+        .org-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            margin: 4px 0 14px
+        }
+
+        .org-head h2 {
+            margin: 0;
+            font-size: 22px
+        }
+
+        .row-card {
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            padding: 14px;
+            margin-bottom: 10px
+        }
+
+        .rc-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px
+        }
+
+        .rc-name {
+            font-family: Rye, serif;
+            font-size: 19px;
+            line-height: 1.2;
+            min-width: 0
+        }
+
+        .rc-name span {
+            color: var(--coral)
+        }
+
+        .rc-link {
+            font-size: 12px;
+            color: var(--muted);
+            margin: 4px 0 12px;
+            word-break: break-all;
+            user-select: all
+        }
+
+        .card.soft {
+            background: var(--gold-bg);
+            border-color: #f0dcae;
+            margin-bottom: 14px
+        }
+
+        .card.soft h3 {
+            margin: 0 0 4px;
+            font-size: 16px
+        }
+
+        .card.soft p {
+            margin: 0 0 12px;
+            font-size: 14px;
+            color: #6b5022
+        }
+
+        .add-row {
+            display: flex;
+            gap: 8px;
+            margin: 8px 0
+        }
+
+        .add-row input {
+            flex: 1;
+            min-width: 0;
+            padding: 10px 12px;
+            border: 1.5px solid var(--line);
+            border-radius: 10px;
+            background: #fffdf8;
+            font-size: 16px;
+            outline: none
+        }
+
+        .add-row input:focus {
+            border-color: var(--teal)
+        }
+
+        .org-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--line);
+            font-size: 14.5px
+        }
+
+        .org-row span {
+            min-width: 0;
+            word-break: break-all
+        }
+
+        .preview-name {
+            text-align: center;
+            margin: 6px 0 16px;
+            font-size: 30px
+        }
+
+        .stop-row {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 10px 12px;
+            margin-bottom: 8px
+        }
+
+        .stop-row .pts {
+            width: 46px;
+            height: 46px;
+            font-size: 16px
+        }
+
+        .stop-row .body {
+            flex: 1;
+            min-width: 0
+        }
+
+        .sr-name {
+            font-weight: 700;
+            font-size: 15px
+        }
+
+        .sr-btns {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex: none
+        }
+
+        .iconbtn {
+            width: 30px;
+            height: 30px;
+            border-radius: 8px;
+            border: 1.5px solid var(--line);
+            font-weight: 800;
+            color: var(--ink2)
+        }
+
+        .iconbtn[disabled] {
+            opacity: .3
+        }
+
+        .stop-row.confirming {
+            background: var(--danger-bg);
+            border-color: #f1c5bb
+        }
+
+        .danger-zone {
+            margin-top: 26px;
+            padding: 14px;
+            border: 1px solid #f1c5bb;
+            border-radius: 14px;
+            background: var(--danger-bg)
+        }
+
+        .danger-zone p {
+            margin: 0 0 10px;
+            font-size: 14px
+        }
+
+        #stopMap {
+            height: 260px;
+            border-radius: 14px;
+            overflow: hidden;
+            margin: 4px 0 6px;
+            border: 1px solid var(--line)
+        }
+
+        .coord-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px
+        }
+
+        .result {
+            display: block;
+            width: 100%;
+            text-align: left;
+            padding: 9px 11px;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            background: #fff;
+            margin-bottom: 6px;
+            font-size: 13.5px
+        }
+
+        .check {
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+            font-size: 14px;
+            margin: 4px 0 12px
+        }
+
+        .check input {
+            width: 20px;
+            height: 20px;
+            margin-top: 1px;
+            accent-color: var(--teal);
+            flex: none
+        }
+
+        /* bottom sheet */
+        .sheet {
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            background: rgba(20, 22, 35, .5);
+            display: flex;
+            align-items: flex-end;
+            justify-content: center
+        }
+
+        .sheet .panel {
+            background: var(--cream);
+            width: 100%;
+            max-width: 560px;
+            border-radius: 20px 20px 0 0;
+            padding: 10px 18px calc(20px + var(--safe-b));
+            max-height: 92dvh;
+            overflow-y: auto;
+            animation: up .22s ease-out
+        }
+
+        @keyframes up {
+            from {
+                transform: translateY(40px);
+                opacity: .4
+            }
+
+            to {
+                transform: none;
+                opacity: 1
+            }
+        }
+
+        @media (prefers-reduced-motion:reduce) {
+            .sheet .panel {
+                animation: none
+            }
+
+            .bar i {
+                transition: none
+            }
+        }
+
+        .grab {
+            width: 40px;
+            height: 5px;
+            border-radius: 9px;
+            background: #d8cfbd;
+            margin: 0 auto 12px
+        }
+
+        .sheet h2 {
+            margin: 0 0 2px;
+            font-size: 20px
+        }
+
+        .pick {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            border: 2px dashed #d6cbb4;
+            border-radius: 14px;
+            padding: 26px 12px;
+            color: var(--ink2);
+            font-weight: 600;
+            margin: 14px 0;
+            background: #fffdf8;
+            text-align: center;
+            cursor: pointer
+        }
+
+        .pick svg {
+            width: 34px;
+            height: 34px;
+            color: var(--coral)
+        }
+
+        .preview {
+            width: 100%;
+            border-radius: 14px;
+            margin: 14px 0 8px;
+            display: block;
+            max-height: 46vh;
+            object-fit: cover
+        }
+
+        .count {
+            text-align: right;
+            font-size: 12px;
+            color: var(--muted);
+            margin-top: -8px;
+            margin-bottom: 10px
+        }
+
+        .lightbox {
+            position: fixed;
+            inset: 0;
+            z-index: 1100;
+            background: rgba(10, 10, 16, .92);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            color: #fff
+        }
+
+        .lightbox img {
+            max-width: 100%;
+            max-height: 78vh;
+            border-radius: 10px
+        }
+
+        .lightbox .cap {
+            margin-top: 12px;
+            text-align: center;
+            max-width: 520px;
+            font-size: 15px
+        }
+
+        .lightbox .cap b {
+            color: var(--gold)
+        }
+
+        .toast {
+            position: fixed;
+            left: 50%;
+            bottom: calc(var(--nav-h) + 18px + var(--safe-b));
+            transform: translateX(-50%) translateY(20px);
+            background: var(--ink);
+            color: #fff;
+            padding: 11px 16px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            opacity: 0;
+            pointer-events: none;
+            transition: .25s;
+            z-index: 1200;
+            max-width: 90vw;
+            text-align: center
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%)
+        }
+
+        /* map */
+        .stop-pin {
+            width: 34px;
+            height: 34px;
+            border-radius: 50% 50% 50% 4px;
+            transform: rotate(-45deg);
+            background: var(--coral);
+            border: 3px solid #fff;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, .3);
+            display: flex;
+            align-items: center;
+            justify-content: center
+        }
+
+        .stop-pin b {
+            transform: rotate(45deg);
+            color: #fff;
+            font-size: 11px;
+            font-weight: 800
+        }
+
+        .stop-pin.found {
+            background: var(--teal)
+        }
+
+        .stop-pin.hotel {
+            background: var(--ink)
+        }
+
+        .post-dot {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            border: 2.5px solid #fff;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, .35)
+        }
+
+        .me-dot {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #2f7cf6;
+            border: 3px solid #fff;
+            box-shadow: 0 0 0 6px rgba(47, 124, 246, .25)
+        }
+
+        .leaflet-popup-content {
+            margin: 12px;
+            font-family: Inter, system-ui, sans-serif
+        }
+
+        .pop-ph {
+            width: 200px;
+            height: 150px;
+            border-radius: 8px;
+            background: #eee center/cover;
+            margin-bottom: 6px;
+            cursor: pointer
+        }
+
+        .pop-nm {
+            font-weight: 700
+        }
+
+        .pop-sub {
+            font-size: 12px;
+            color: var(--muted)
+        }
+
+        .map-legend {
+            position: absolute;
+            left: 10px;
+            bottom: 10px;
+            z-index: 500;
+            background: rgba(255, 255, 255, .95);
+            border-radius: 12px;
+            padding: 8px 11px;
+            font-size: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, .15)
+        }
+
+        .map-legend div {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            margin: 2px 0
+        }
+
+        .map-legend i {
+            width: 11px;
+            height: 11px;
+            border-radius: 50%;
+            display: inline-block
+        }
+
+        .map-btns {
+            position: absolute;
+            right: 10px;
+            bottom: 10px;
+            z-index: 500;
+            display: flex;
+            gap: 8px
+        }
+
+        .map-btn {
+            background: #fff;
+            border-radius: 12px;
+            padding: 10px 13px;
+            font-weight: 700;
+            font-size: 13px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, .18)
+        }
+
+        .notiles {
+            background: #e6efe9 !important;
+            background-image: linear-gradient(rgba(29, 34, 53, .05) 1px, transparent 1px), linear-gradient(90deg, rgba(29, 34, 53, .05) 1px, transparent 1px) !important;
+            background-size: 40px 40px !important
+        }
+
+        .stop-label {
+            background: rgba(255, 255, 255, .92);
+            border: 0;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, .2);
+            font: 600 11px Inter, system-ui, sans-serif;
+            color: var(--ink);
+            padding: 2px 6px
+        }
+
+        .stop-label::before {
+            display: none
+        }
+
+        .basemap {
+            display: flex;
+            background: #fff;
+            border-radius: 10px;
+            padding: 3px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, .2)
+        }
+
+        .basemap button {
+            padding: 7px 11px;
+            border-radius: 8px;
+            font: 700 12.5px Inter, system-ui, sans-serif;
+            color: var(--muted)
+        }
+
+        .basemap button.on {
+            background: var(--ink);
+            color: #fff
+        }
+
+        .map-note {
+            position: absolute;
+            left: 10px;
+            top: 10px;
+            right: 60px;
+            max-width: 300px;
+            z-index: 500;
+            background: rgba(255, 255, 255, .95);
+            color: var(--ink2);
+            border-radius: 10px;
+            padding: 8px 11px;
+            font-size: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, .15)
+        }
+
+        .map-note.tiles-fail {
+            top: 58px;
+            right: 10px;
+            left: 10px;
+            max-width: none
+        }
+    </style>
+
+    <!-- ============ SETUP NEEDED ============ -->
+    <div id="screen-setup" class="screen hidden">
+        <div class="logo app-name">Photo <span>Hunt</span></div>
+        <p class="tag">Almost ready. This copy isn't connected to a database yet.</p>
+        <div class="card">
+            <ol class="steps">
+                <li>Go to <b>console.firebase.google.com</b> and create a project.</li>
+                <li><b>Build → Authentication → Get started</b>, then turn on <b>Email/Password</b>.</li>
+                <li><b>Build → Realtime Database → Create database</b>. Open its <b>Rules</b> tab, paste in
+                    <code>database.rules.json</code>, and click Publish.
+                </li>
+                <li><b>Project settings → Your apps → Web (&lt;/&gt;)</b>. Register the app and copy the
+                    <code>firebaseConfig</code> values into the <code>FIREBASE_CONFIG</code> block in this file.
+                </li>
+                <li>Upload the file to an <b>https</b> site such as GitHub Pages. Phones only share GPS with https
+                    pages.</li>
+            </ol>
+            <p class="hint" style="margin-top:14px">To look around without Firebase, add <code>?demo</code> to the page
+                address, or open the file straight from your computer.</p>
+        </div>
+    </div>
+
+    <!-- ============ SIGN IN ============ -->
+    <div id="screen-auth" class="screen hidden">
+        <div class="logo app-name">Photo <span>Hunt</span></div>
+        <p class="tag" id="authTag"></p>
+        <div class="card">
+            <p id="demoNote" class="hidden">Demo: the details are filled in for you. Tap <b>Create account</b> to look
+                around.
+                Nothing is shared with anyone, and changes stay in this browser.</p>
+            <div class="seg"><button id="segIn" class="on" type="button">Sign in</button><button id="segUp"
+                    type="button">Create account</button></div>
+            <form id="authForm" autocomplete="on">
+                <label class="field hidden" id="unameField"><span>Username (shown on the leaderboard)</span>
+                    <input id="authUser" autocomplete="username" maxlength="20" placeholder="e.g. polk_fan_11">
+                    <div class="hint">3–20 letters, numbers, or underscores.</div>
+                </label>
+                <label class="field"><span>Email</span><input id="authEmail" type="email" autocomplete="email"
+                        required></label>
+                <label class="field"><span>Password</span><input id="authPass" type="password"
+                        autocomplete="current-password" minlength="6" required></label>
+                <div class="err" id="authErr"></div>
+                <button class="btn" id="authBtn" type="submit">Sign in</button>
+            </form>
+            <div style="text-align:center;margin-top:10px"><button class="linkbtn" id="forgotBtn" type="button">Forgot
+                    password?</button></div>
+        </div>
+    </div>
+
+    <!-- ============ PICK USERNAME (if signup was interrupted) ============ -->
+    <div id="screen-username" class="screen hidden">
+        <div class="logo app-name">Photo <span>Hunt</span></div>
+        <p class="tag">One more step: choose the name other players will see.</p>
+        <div class="card">
+            <label class="field"><span>Username</span><input id="fixUser" maxlength="20"></label>
+            <div class="err" id="fixErr"></div>
+            <button class="btn" id="fixBtn">Save username</button>
+            <div style="text-align:center;margin-top:10px"><button class="linkbtn" id="fixOut">Sign out</button></div>
+        </div>
+    </div>
+
+    <!-- ============ HUNT PICKER ============ -->
+    <div id="screen-picker" class="screen hidden">
+        <div class="logo app-name">Photo <span>Hunt</span></div>
+        <p class="tag">Choose a hunt to play.</p>
+        <div id="pickList"></div>
+        <div class="picker-foot">
+            <button class="btn ghost hidden" id="pickOrg">Organizer tools</button>
+            <button class="linkbtn" id="pickOut">Sign out</button>
+        </div>
+    </div>
+
+    <!-- ============ PLAY A HUNT ============ -->
+    <div id="screen-main" class="app-shell hidden">
+        <header class="top">
+            <div class="brand" id="gameBrand"></div>
+            <button class="pill" id="scorePill"><b id="pillPts">0</b> pts · <span id="pillRank">—</span></button>
+        </header>
+        <div id="testBanner" class="banner hidden">TEST MODE: tap the map to fake your location. These posts are kept
+            separate from the real game.</div>
+        <div id="closedBanner" class="banner closed hidden">This hunt is closed. You can look around, but new posts are
+            turned off.</div>
+        <div id="gpsBar" class="gps"><span class="dot"></span><span id="gpsText">Finding your location…</span></div>
+        <main>
+            <section id="tab-hunt" class="tab"></section>
+            <section id="tab-map" class="tab hidden">
+                <div id="map"></div>
+                <div class="map-legend">
+                    <div><i style="background:var(--coral)"></i>Stop to find</div>
+                    <div><i style="background:var(--teal)"></i>You found it</div>
+                    <div><i style="background:#888;border:2px solid #fff;box-shadow:0 0 0 1px #aaa"></i>Player posts
+                    </div>
+                </div>
+                <div class="map-btns"><button class="map-btn" id="showAll">⤢ Everyone</button><button class="map-btn"
+                        id="recenter">◎ Me</button></div>
+            </section>
+            <section id="tab-feed" class="tab hidden"></section>
+            <section id="tab-ranks" class="tab hidden"></section>
+        </main>
+        <nav class="tabs">
+            <button data-tab="hunt" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 11l3 3L22 4" />
+                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                </svg>Hunt</button>
+            <button data-tab="map"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2z" />
+                    <path d="M9 4v14M15 6v14" />
+                </svg>Map</button>
+            <button data-tab="feed"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="3" />
+                    <circle cx="8.5" cy="8.5" r="1.8" />
+                    <path d="M21 15l-5-5L5 21" />
+                </svg>Feed</button>
+            <button data-tab="ranks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4z" />
+                    <path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3" />
+                </svg>Leaders</button>
+        </nav>
+    </div>
+
+    <!-- ============ ORGANIZER TOOLS ============ -->
+    <div id="screen-org" class="app-shell hidden">
+        <header class="top"><button class="back" id="orgBack">‹ Back</button>
+            <div class="brand">Organizer</div><span class="spacer"></span>
+        </header>
+        <div class="scroll">
+            <div class="wrap" id="orgBody"></div>
+        </div>
+    </div>
+
+    <!-- ============ HUNT EDITOR ============ -->
+    <div id="screen-edit" class="app-shell hidden">
+        <header class="top"><button class="back" id="editBack">Cancel</button>
+            <div class="brand" id="editTitle">New hunt</div><span class="spacer"></span>
+        </header>
+        <div class="scroll">
+            <div class="wrap" id="editBody"></div>
+        </div>
+        <div class="savebar">
+            <div class="wrap">
+                <div class="err" id="editErr"></div><button class="btn" id="editSave">Save hunt</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ OVERLAYS ============ -->
+    <div id="sheet" class="sheet hidden">
+        <div class="panel" id="sheetPanel"></div>
+    </div>
+    <div id="lightbox" class="lightbox hidden"><img id="lbImg" alt="">
+        <div class="cap" id="lbCap"></div>
+    </div>
+    <div id="toast" class="toast" role="status"></div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <script>
+        // Shows a readable message if the app's code fails to start (for example after an edit).
+        window.addEventListener("error", function (e) {
+            if (!e.message) return;
+            var d = document.getElementById("bootErr");
+            if (!d) {
+                d = document.createElement("div"); d.id = "bootErr";
+                d.style.cssText = "position:fixed;left:12px;right:12px;bottom:12px;z-index:3000;background:#fde8e3;color:#7a1f10;border:1px solid #e2553b;border-radius:12px;padding:12px 14px;font:14px/1.45 system-ui,sans-serif";
+                document.body.appendChild(d);
+            }
+            d.textContent = "The app hit a problem: " + e.message + (e.lineno ? " (line " + e.lineno + ")" : "") +
+                ". If you edited the settings, check that every line still has matching quotes and ends with a semicolon.";
+        });
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <script>
+        // ============================================================================
+        // SETUP
+        // ============================================================================
+        const FIREBASE_CONFIG = {
+            apiKey: "AIzaSyCAdqITY-xF79yAAxKk8DEQuUrsHzv9FbU",
+            authDomain: "music-city-hunt.firebaseapp.com",
+            databaseURL: "https://music-city-hunt-default-rtdb.firebaseio.com",
+            projectId: "music-city-hunt",
+            storageBucket: "music-city-hunt.firebasestorage.app",
+            messagingSenderId: "103568905192",
+            appId: "1:103568905192:web:bf2789b8d34d76c711ca5d",
+            measurementId: "G-WKLDXHHYX9"
+        };
+
+        // The app owner can manage every hunt and add organizers.
+        // This must match the email written in database.rules.json.
+        const OWNER_EMAIL = "curbyalexander@gmail.com";
+
+        // Name shown before someone picks a hunt (each hunt has its own name).
+        const APP_TITLE = ["Photo", "Hunt"];
+        const APP_TAGLINE = "GPS photo scavenger hunts. Get close to a stop, take the photo challenge, and score points.";
+
+        // DEMO_MODE = true runs the whole app in this browser with sample players and
+        // posts, no Firebase needed. Adding ?demo to the address does the same.
+        const DEMO_MODE = false;
+        const SHOW_TILES = false;  // street and satellite maps (false where map images can't load)
+
+        const MIN_POINTS = 10;    // lowest score a stop can be worth when points are worked out automatically
+        const CAPTION_MAX = 140;
+
+        // The Nashville hunt. In Organizer tools, the owner can add it with one tap.
+        const DEFAULT_GAME = {
+            id: "nashville-2027",
+            meta: {
+                name1: "Music City", name2: "Hunt", tagline: "A GPS photo scavenger hunt across Nashville. Get within 100 m of a stop, snap the challenge, score points.",
+                homeLabel: "the hotel", geofence: 100, ppm: 10, status: "open", homeId: "sheraton"
+            },
+            stops: [
+                { id: "sheraton", name: "Sheraton Music City (Conference Hotel)", lat: 36.15970, lng: -86.68170, miles: 0, about: "Conference HQ, where every hunt starts", task: "Check-in selfie" },
+                { id: "cmhof", name: "Country Music Hall of Fame", lat: 36.15820, lng: -86.77610, miles: 7.0, about: "Cool music", task: "Diva pose" },
+                { id: "bna", name: "Nashville International Airport", lat: 36.12450, lng: -86.67820, miles: 3.0, about: "The amazing science of transportation", task: "Airplane arms" },
+                { id: "polk-tomb", name: "James K. Polk Tomb", lat: 36.16610, lng: -86.78380, miles: 7.8, about: "Dead president", task: "Selfie" },
+                { id: "wwii", name: "Tennessee WWII Memorial", lat: 36.17230, lng: -86.78680, miles: 9.1, about: "War", task: "Selfie" },
+                { id: "ped-bridge", name: "John Seigenthaler Pedestrian Bridge", lat: 36.16170, lng: -86.77160, miles: 7.8, about: "Old bridge", task: "Walking on the bridge" },
+                { id: "polk-death", name: "James K. Polk Death Place", lat: 36.16430, lng: -86.78210, miles: 8.8, about: "Dead. President.", task: "Selfie" },
+                { id: "ryman", name: "Ryman Auditorium", lat: 36.16120, lng: -86.77850, miles: 8.1, about: "Mother Church of Country Music", task: "Singing on the steps" },
+                { id: "parthenon", name: "The Parthenon", lat: 36.14960, lng: -86.81330, miles: 10, about: "Fake Greek thing", task: "Selfie" },
+                { id: "hermitage", name: "The Hermitage", lat: 36.21500, lng: -86.61330, miles: 6.2, about: "Dead president home — racist, anti-Indigenous a**hole", task: "Scowling selfie" },
+                { id: "fort-negley", name: "Fort Negley", lat: 36.14270, lng: -86.77570, miles: 6.2, about: "Civil War fort", task: "Cannon selfie" },
+                { id: "nashborough", name: "Fort Nashborough", lat: 36.16410, lng: -86.77450, miles: 7.9, about: "Foundation of Nashville", task: "Fort selfie" }
+            ]
+        };
+
+        // ============================================================================
+        // Helpers
+        // ============================================================================
+        const params = new URLSearchParams(location.search);
+        const DEMO = DEMO_MODE || params.has("demo") || location.protocol === "file:";
+        const TEST = params.has("test") || DEMO;
+        const URL_GAME = params.get("game");
+        const NOT_CONFIGURED = !DEMO && FIREBASE_CONFIG.apiKey.startsWith("PASTE");
+        const LAST_KEY = "photohunt-last-hunt";
+
+        const TILE_URL = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
+        const TILE_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>';
+        const STREET_ALT_URL = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}";
+        const STREET_ALT_ATTR = 'Map &copy; Esri, HERE, Garmin, &copy; OpenStreetMap contributors';
+        const SAT_URL = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+        const SAT_ATTR = 'Imagery &copy; Esri, Maxar, Earthstar Geographics';
+        const LABELS_URL = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png";
+
+        const $ = s => document.querySelector(s);
+        const $$ = s => [...document.querySelectorAll(s)];
+        const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+        const SCREENS = ["screen-setup", "screen-auth", "screen-username", "screen-picker", "screen-main", "screen-org", "screen-edit"];
+        let screen = null;
+        const show = id => { screen = id; SCREENS.forEach(x => $("#" + x).classList.toggle("hidden", x !== id)); window.scrollTo(0, 0); };
+        const readLS = k => { try { return localStorage.getItem(k); } catch { return null; } };
+        const writeLS = (k, v) => { try { localStorage.setItem(k, v); } catch { } };
+        const num = (v, d) => (typeof v === "number" && isFinite(v)) ? v : d;
+        const emailKey = e => String(e || "").toLowerCase().replace(/\./g, ",");
+        const slugify = s => String(s || "").toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+        const newId = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        const nameHTML = (n1, n2) => esc(n1 || "") + (n2 ? " <span>" + esc(n2) + "</span>" : "");
+        const nameText = m => [m && m.name1, m && m.name2].filter(Boolean).join(" ");
+        const gameLink = id => location.href.split(/[?#]/)[0] + "?game=" + encodeURIComponent(id);
+        const TS = () => firebase.database.ServerValue.TIMESTAMP;
+        function clean(o) {
+            const r = {};
+            for (const [k, v] of Object.entries(o)) if (v !== undefined && v !== null && !(typeof v === "number" && !isFinite(v))) r[k] = v;
+            return r;
+        }
+        function distM(a, b) {
+            const R = 6371000, r = x => x * Math.PI / 180;
+            const dLat = r(b.lat - a.lat), dLng = r(b.lng - a.lng);
+            const h = Math.sin(dLat / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dLng / 2) ** 2;
+            return 2 * R * Math.asin(Math.sqrt(h));
+        }
+        function fmtDist(m) {
+            if (m < 300) return Math.round(m * 3.281) + " ft";
+            const mi = m / 1609.34;
+            return (mi < 10 ? mi.toFixed(1) : Math.round(mi)) + " mi";
+        }
+        function ago(ts) {
+            const s = Math.max(1, (Date.now() - ts) / 1000);
+            if (s < 60) return "just now";
+            if (s < 3600) return Math.floor(s / 60) + "m ago";
+            if (s < 86400) return Math.floor(s / 3600) + "h ago";
+            return new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+        }
+        function userColor(name) {
+            let h = 0; for (const c of String(name)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+            return `hsl(${h % 360} 62% 44%)`;
+        }
+        function toast(msg, ms = 2600) {
+            const t = $("#toast"); t.textContent = msg; t.classList.add("show");
+            clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove("show"), ms);
+        }
+        async function copyText(text) {
+            try { await navigator.clipboard.writeText(text); return true; } catch { return false; }
+        }
+        const dirUrl = s => `https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}`;
+
+        // Points: a stop's own points if set, otherwise miles from home base x points per mile.
+        // Miles: the stop's own miles if set, otherwise the straight-line distance from home base.
+        function buildStops(meta, raw) {
+            const list = Object.entries(raw || {}).map(([id, s]) => ({ ...s, id }));
+            list.sort((a, b) => num(a.order, 0) - num(b.order, 0));
+            const home = list.find(s => s.id === (meta && meta.homeId));
+            const ppm = num(meta && meta.ppm, 10);
+            return list.map(s => {
+                const autoMiles = home && home.id !== s.id ? +(distM(home, s) / 1609.34).toFixed(1) : 0;
+                const miles = typeof s.miles === "number" ? s.miles : autoMiles;
+                const points = typeof s.points === "number" ? s.points : Math.max(MIN_POINTS, Math.round(miles * ppm));
+                return { ...s, autoMiles, miles, points };
+            });
+        }
+
+        // ============================================================================
+        // State
+        // ============================================================================
+        let auth, db;
+        const state = {
+            user: null, profile: null, isOwner: false, isOrg: false, organizers: {},
+            gamesMeta: {}, metaLoaded: false, pendingRoute: false,
+            gameId: null, meta: null, rawStops: {}, stops: [], stopById: {}, total: 0,
+            posts: [], tab: "hunt", pos: null, sim: null, gpsErr: null,
+            board: [], myPts: 0, myRank: null, myFound: new Map(), confirmRm: null,
+            draft: null
+        };
+        const thumbCache = new Map();
+        let pending = null, sheetCleanup = null, signingUp = false, signUpMode = false;
+        let gameRefs = [], orgRef = null, watchId = null;
+        let map = null, stopLayer = null, postLayer = null, meMarker = null, meAcc = null, mapNeedsFit = true;
+
+        const uid = () => state.user && state.user.uid;
+        const envPath = (id = state.gameId) => `games/${id}/${TEST ? "sandbox" : "live"}`;
+        const geofence = () => num(state.meta && state.meta.geofence, 100);
+        const isOpen = () => !!state.meta && state.meta.status !== "closed";
+        const canEdit = m => !!m && (state.isOwner || (state.isOrg && m.owner === uid()));
+
+        function updateRole() {
+            const email = (state.user && state.user.email || "").toLowerCase();
+            state.isOwner = DEMO || (!!email && email === OWNER_EMAIL.toLowerCase());
+            state.isOrg = state.isOwner || !!state.organizers[emailKey(email)];
+        }
+
+        // ============================================================================
+        // Start
+        // ============================================================================
+        function boot() {
+            if (DEMO) { window.firebase = makeFakeFirebase(); seedDemo(); }
+            firebase.initializeApp(FIREBASE_CONFIG);
+            auth = firebase.auth();
+            db = firebase.database();
+            wireAuthScreen(); wireMain(); wireOrg();
+            if (DEMO) prepDemoForm();
+            renderAuthBrand();
+            db.ref("gameMeta").on("value", onGamesMeta, err => toast("Couldn't load hunts: " + err.message, 5000));
+            auth.onAuthStateChanged(async user => {
+                if (signingUp) return;   // signUp() finishes the flow itself
+                signedOut();
+                state.user = user;
+                if (!user) { show("screen-auth"); return; }
+                const snap = await db.ref("users/" + user.uid).once("value");
+                state.profile = snap.val();
+                if (!state.profile || !state.profile.username) { show("screen-username"); return; }
+                afterLogin();
+            });
+        }
+
+        function signedOut() {
+            closeGame();
+            if (orgRef) { orgRef.off(); orgRef = null; }
+            state.organizers = {}; state.isOwner = false; state.isOrg = false;
+        }
+
+        function afterLogin() {
+            updateRole();
+            const key = emailKey(state.user.email);
+            // The owner reads the whole organizer list; everyone else can only check their own entry.
+            const whole = state.isOwner;
+            orgRef = whole ? db.ref("organizers") : db.ref("organizers/" + key);
+            orgRef.on("value", s => {
+                const v = s.val();
+                state.organizers = whole ? (v || {}) : (v ? { [key]: v } : {});
+                updateRole();
+                if (screen === "screen-picker") renderPicker();
+                if (screen === "screen-org") renderOrg();
+            }, () => { });
+            if (!DEMO) startGps();
+            routeAfterLogin();
+        }
+
+        function routeAfterLogin() {
+            if (!state.metaLoaded) { state.pendingRoute = true; return; }
+            const want = URL_GAME || readLS(LAST_KEY);
+            const m = want && state.gamesMeta[want];
+            if (m && (want === URL_GAME || m.status !== "closed" || canEdit(m))) { openGame(want); return; }
+            if (URL_GAME && !m) toast("That link doesn't match a hunt. Pick one below.", 4000);
+            showPicker();
+        }
+
+        function onGamesMeta(snap) {
+            state.gamesMeta = snap.val() || {};
+            state.metaLoaded = true;
+            renderAuthBrand();
+            if (state.pendingRoute) { state.pendingRoute = false; routeAfterLogin(); return; }
+            if (state.gameId) {
+                const m = state.gamesMeta[state.gameId];
+                if (!m) {
+                    const wasPlaying = screen === "screen-main";
+                    closeGame();
+                    if (wasPlaying) { toast("That hunt was deleted."); showPicker(); }
+                } else {
+                    state.meta = m; restock(); recompute();
+                    if (screen === "screen-main") render();
+                }
+            }
+            if (screen === "screen-picker") renderPicker();
+            if (screen === "screen-org") renderOrg();
+        }
+
+        function renderAuthBrand() {
+            const m = URL_GAME && state.gamesMeta[URL_GAME];
+            $$(".app-name").forEach(el => el.innerHTML = m ? nameHTML(m.name1, m.name2) : nameHTML(APP_TITLE[0], APP_TITLE[1]));
+            $("#authTag").textContent = (m && m.tagline) || APP_TAGLINE;
+            if (screen !== "screen-main") document.title = m ? nameText(m) : APP_TITLE.join(" ");
+        }
+
+        // ============================================================================
+        // Sign in
+        // ============================================================================
+        function wireAuthScreen() {
+            const setMode = up => {
+                signUpMode = up;
+                $("#segIn").classList.toggle("on", !up); $("#segUp").classList.toggle("on", up);
+                $("#unameField").classList.toggle("hidden", !up);
+                $("#authBtn").textContent = up ? "Create account" : "Sign in";
+                $("#authPass").autocomplete = up ? "new-password" : "current-password";
+                $("#authErr").textContent = "";
+            };
+            $("#segIn").onclick = () => setMode(false);
+            $("#segUp").onclick = () => setMode(true);
+            $("#authForm").onsubmit = async e => {
+                e.preventDefault();
+                const email = $("#authEmail").value.trim(), pass = $("#authPass").value;
+                const btn = $("#authBtn"); btn.disabled = true; $("#authErr").textContent = "";
+                try {
+                    if (signUpMode) await signUp(email, pass, $("#authUser").value.trim());
+                    else await auth.signInWithEmailAndPassword(email, pass);
+                } catch (err) { $("#authErr").textContent = friendlyAuthError(err); }
+                btn.disabled = false;
+            };
+            $("#forgotBtn").onclick = async () => {
+                const email = $("#authEmail").value.trim();
+                if (!email) { $("#authErr").textContent = "Type your email above first, then tap Forgot password."; return; }
+                try { await auth.sendPasswordResetEmail(email); toast("Reset link sent. Check your email."); }
+                catch (err) { $("#authErr").textContent = friendlyAuthError(err); }
+            };
+            $("#fixBtn").onclick = async () => {
+                $("#fixErr").textContent = "";
+                try {
+                    await claimUsername($("#fixUser").value.trim());
+                    state.profile = (await db.ref("users/" + state.user.uid).once("value")).val();
+                    afterLogin();
+                } catch (err) { $("#fixErr").textContent = err.message || String(err); }
+            };
+            $("#fixOut").onclick = () => auth.signOut();
+        }
+        function validUsername(u) {
+            if (!/^[A-Za-z0-9_]{3,20}$/.test(u)) throw new Error("Usernames are 3–20 letters, numbers, or underscores.");
+        }
+        async function claimUsername(u) {
+            validUsername(u);
+            const key = u.toLowerCase(), id = auth.currentUser.uid;
+            const ref = db.ref("usernames/" + key);
+            const existing = (await ref.once("value")).val();
+            if (existing && existing !== id) throw new Error("That username is taken. Try another.");
+            if (!existing) {
+                try { await ref.set(id); } catch { throw new Error("That username is taken. Try another."); }
+            }
+            await db.ref("users/" + id).set({ username: u, created: TS() });
+        }
+        async function signUp(email, pass, u) {
+            validUsername(u);
+            if ((await db.ref("usernames/" + u.toLowerCase()).once("value")).exists()) throw new Error("That username is taken. Try another.");
+            signingUp = true;
+            try {
+                const cred = await auth.createUserWithEmailAndPassword(email, pass);
+                try { await claimUsername(u); }
+                catch (err) { signingUp = false; await cred.user.delete().catch(() => { }); throw err; }
+                signingUp = false;
+                state.user = cred.user;
+                state.profile = { username: u };
+                afterLogin();
+            } finally { signingUp = false; }
+        }
+        function friendlyAuthError(err) {
+            const c = err && err.code || "";
+            if (c.includes("invalid-credential") || c.includes("wrong-password") || c.includes("user-not-found")) return "That email and password don't match an account.";
+            if (c.includes("email-already-in-use")) return "There's already an account with that email. Try signing in.";
+            if (c.includes("weak-password")) return "Use a password with at least 6 characters.";
+            if (c.includes("invalid-email")) return "That email address doesn't look right.";
+            if (c.includes("too-many-requests")) return "Too many tries. Wait a minute and try again.";
+            if (c.includes("network")) return "No connection. Check your signal and try again.";
+            if (c.includes("operation-not-allowed")) return "Email sign-in isn't turned on yet in Firebase (Authentication → Sign-in method).";
+            return err.message || "Something went wrong.";
+        }
+
+        // ============================================================================
+        // Hunt picker
+        // ============================================================================
+        function showPicker() { show("screen-picker"); renderAuthBrand(); renderPicker(); }
+        function renderPicker() {
+            const games = Object.entries(state.gamesMeta).map(([id, m]) => ({ ...m, id }))
+                .filter(g => g.status !== "closed" || canEdit(g))
+                .sort((a, b) => num(b.created, 0) - num(a.created, 0));
+            $("#pickList").innerHTML = games.length ? games.map(g => `
+    <button class="game-card" data-play="${esc(g.id)}">
+      <h3>${nameHTML(g.name1, g.name2)}</h3>
+      ${g.tagline ? `<p>${esc(g.tagline)}</p>` : ""}
+      <div class="go">${g.status === "closed" ? '<span class="chip closed">Closed</span>' : "<span></span>"}<span>Play ›</span></div>
+    </button>`).join("")
+                : `<div class="empty small">No hunts are open right now.${state.isOrg ? " Make one in Organizer tools." : " Check back soon."}</div>`;
+            $$("#pickList [data-play]").forEach(b => b.onclick = () => openGame(b.dataset.play));
+            $("#pickOrg").classList.toggle("hidden", !state.isOrg);
+        }
+
+        // ============================================================================
+        // Playing a hunt
+        // ============================================================================
+        function detachGame() { gameRefs.forEach(r => r.off()); gameRefs = []; }
+        function closeGame() {
+            detachGame();
+            state.gameId = null; state.meta = null; state.rawStops = {}; state.posts = [];
+            restock(); recompute();
+        }
+        function openGame(id) {
+            detachGame();
+            state.gameId = id; writeLS(LAST_KEY, id);
+            state.meta = state.gamesMeta[id]; state.rawStops = {}; state.posts = []; state.confirmRm = null;
+            if (DEMO) state.sim = null;
+            restock(); recompute(); mapNeedsFit = true;
+            const sref = db.ref("gameStops/" + id);
+            sref.on("value", s => {
+                state.rawStops = s.val() || {};
+                restock(); recompute();
+                if (DEMO && !state.sim && state.stops.length) {
+                    const h = state.stopById[state.meta && state.meta.homeId] || state.stops[0];
+                    state.sim = { lat: h.lat + 0.0002, lng: h.lng, acc: 5, ts: Date.now() };
+                    updateMeMarker();
+                }
+                render();
+            }, err => toast("Couldn't load stops: " + err.message, 5000));
+            const pref = db.ref(envPath(id) + "/posts").orderByChild("ts");
+            pref.on("value", snap => {
+                const arr = [];
+                snap.forEach(c => { const v = c.val(); v.id = c.key; arr.push(v); });
+                arr.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+                state.posts = arr;
+                recompute(); render();
+            }, err => toast("Couldn't load posts: " + err.message, 5000));
+            gameRefs.push(sref, pref);
+            show("screen-main");
+            setTab("hunt");
+        }
+        function restock() {
+            state.stops = buildStops(state.meta || {}, state.rawStops);
+            state.stopById = Object.fromEntries(state.stops.map(s => [s.id, s]));
+            state.total = state.stops.reduce((a, s) => a + s.points, 0);
+        }
+        function applyGameHeader() {
+            const m = state.meta || {};
+            $("#gameBrand").innerHTML = nameHTML(m.name1, m.name2);
+            document.title = nameText(m) || APP_TITLE.join(" ");
+            $("#testBanner").classList.toggle("hidden", !TEST);
+            if (DEMO) $("#testBanner").textContent = "DEMO: nothing is shared with anyone. Tap the map or use Jump here to move around.";
+            $("#closedBanner").classList.toggle("hidden", isOpen());
+        }
+
+        function wireMain() {
+            $$(".tabs button").forEach(b => b.onclick = () => setTab(b.dataset.tab));
+            $("#scorePill").onclick = openAccount;
+            $("#recenter").onclick = () => { const p = currentPos(); if (p && map) map.setView([p.lat, p.lng], 16); else toast("No location yet"); };
+            $("#showAll").onclick = () => { if (map) { map.closePopup(); fitAll(); } };
+            $("#sheet").onclick = e => { if (e.target.id === "sheet") closeSheet(); };
+            $("#lightbox").onclick = () => $("#lightbox").classList.add("hidden");
+        }
+        function setTab(t) {
+            state.tab = t;
+            $$(".tabs button").forEach(b => b.classList.toggle("on", b.dataset.tab === t));
+            ["hunt", "map", "feed", "ranks"].forEach(x => $("#tab-" + x).classList.toggle("hidden", x !== t));
+            if (t === "map") ensureMap();
+            render();
+        }
+
+        // ---------------- GPS ----------------
+        function startGps() {
+            if (!("geolocation" in navigator)) { state.gpsErr = "This browser can't share location."; renderGps(); return; }
+            if (watchId != null) return;
+            watchId = navigator.geolocation.watchPosition(p => {
+                state.pos = { lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy, ts: Date.now() };
+                state.gpsErr = null;
+                if (screen === "screen-main") { renderGps(); if (state.tab === "hunt") renderHunt(); updateMeMarker(); }
+            }, err => {
+                state.gpsErr = err.code === 1
+                    ? "Location is blocked. Allow location for this site in your browser settings, then reload."
+                    : "Can't get a GPS fix yet. Try stepping outside.";
+                if (screen === "screen-main") renderGps();
+            }, { enableHighAccuracy: true, maximumAge: 5000, timeout: 30000 });
+        }
+        function currentPos() { return state.sim || state.pos; }
+        function nearestInfo() {
+            const p = currentPos(); if (!p || !state.stops.length) return null;
+            let best = null;
+            for (const s of state.stops) { const d = distM(p, s); if (!best || d < best.d) best = { s, d }; }
+            return best;
+        }
+        function renderGps() {
+            const bar = $("#gpsBar"), txt = $("#gpsText");
+            bar.className = "gps";
+            if (state.sim) { bar.classList.add("warn"); txt.textContent = "Using a test location (tap the map to move it)."; return; }
+            if (state.gpsErr && !state.pos) { bar.classList.add("bad"); txt.textContent = state.gpsErr; return; }
+            if (!state.pos) { txt.textContent = "Finding your location…"; return; }
+            const n = nearestInfo(), acc = Math.round(state.pos.acc);
+            if (!n) { txt.textContent = "This hunt doesn't have any stops yet."; return; }
+            if (acc > geofence()) { bar.classList.add("warn"); txt.textContent = `Weak GPS signal (±${acc} m). Step outside or away from tall buildings.`; return; }
+            bar.classList.add("ok");
+            txt.textContent = n.d <= geofence() ? `You're at ${n.s.name}!` : `GPS ±${acc} m · nearest stop: ${n.s.name}, ${fmtDist(n.d)}`;
+        }
+        function inRange(s) {
+            const p = currentPos(); if (!p) return false;
+            if (!state.sim && Date.now() - p.ts > 120000) return false;
+            return distM(p, s) <= geofence();
+        }
+
+        // ---------------- scoring ----------------
+        function recompute() {
+            const by = new Map();
+            for (const p of [...state.posts].reverse()) {   // oldest first
+                const s = state.stopById[p.locId]; if (!s) continue;
+                let u = by.get(p.uid);
+                if (!u) { u = { uid: p.uid, username: p.username, points: 0, stops: new Set(), last: 0 }; by.set(p.uid, u); }
+                if (u.stops.has(p.locId)) continue;
+                u.stops.add(p.locId); u.points += s.points; u.last = Math.max(u.last, p.ts || 0);
+            }
+            state.board = [...by.values()].sort((a, b) => b.points - a.points || b.stops.size - a.stops.size || a.last - b.last);
+            const me = uid();
+            const idx = state.board.findIndex(u => u.uid === me);
+            state.myRank = idx >= 0 ? idx + 1 : null;
+            state.myPts = idx >= 0 ? state.board[idx].points : 0;
+            state.myFound = new Map(state.posts.filter(p => p.uid === me && state.stopById[p.locId]).map(p => [p.locId, p]));
+        }
+
+        // ---------------- rendering ----------------
+        function render() {
+            if (screen !== "screen-main") return;
+            applyGameHeader();
+            $("#pillPts").textContent = state.myPts;
+            $("#pillRank").textContent = state.myRank ? "#" + state.myRank : "unranked";
+            renderGps();
+            if (state.tab === "hunt") renderHunt();
+            if (state.tab === "feed") renderFeed();
+            if (state.tab === "ranks") renderRanks();
+            updateMapLayers();
+        }
+
+        function renderHunt() {
+            const p = currentPos(), found = state.myFound, open = isOpen();
+            const homeLabel = (state.meta && state.meta.homeLabel) || "home base";
+            const list = state.stops.map(s => ({ s, d: p ? distM(p, s) : null, f: found.get(s.id), near: inRange(s) }));
+            list.sort((a, b) => (b.near - a.near) || (!!a.f - !!b.f) || (a.d != null && b.d != null ? a.d - b.d : 0));
+            const pct = state.total ? Math.round(100 * state.myPts / state.total) : 0;
+            $("#tab-hunt").innerHTML = `<div class="wrap">
+    <div class="dash">
+      <div class="hello">Your hunt</div>
+      <div class="who">${esc(state.profile ? state.profile.username : "")}</div>
+      <div class="stats">
+        <div class="stat"><div class="n">${state.myPts}</div><div class="l">Points</div></div>
+        <div class="stat"><div class="n">${found.size}/${state.stops.length}</div><div class="l">Stops</div></div>
+        <div class="stat"><div class="n">${state.myRank ? "#" + state.myRank : "—"}</div><div class="l">Rank</div></div>
+      </div>
+      <div class="bar"><i style="width:${pct}%"></i></div>
+    </div>
+    <div class="sect">Stops${p ? " · nearest first" : ""}</div>
+    ${list.length ? list.map(({ s, d, f, near }) => `
+      <div class="stop ${f ? "found" : ""} ${near && !f && open ? "inrange" : ""}">
+        <div class="pts">${s.points}<small>PTS</small></div>
+        <div class="body">
+          <h3>${esc(s.name)}</h3>
+          ${s.about ? `<div class="about">${esc(s.about)}</div>` : ""}
+          ${s.task ? `<span class="task">📸 ${esc(s.task)}</span>` : ""}
+          <div class="meta">
+            ${f ? `<span class="badge found">✓ Found · +${s.points}</span>`
+                    : near && open ? `<button class="btn small teal" data-post="${esc(s.id)}">Post here</button>`
+                        : `<span>${d != null ? fmtDist(d) + " away" : s.miles + " mi from " + esc(homeLabel)}</span>`}
+            ${f ? `<button class="linkbtn" data-view="${esc(f.id)}">View post</button>`
+                    : TEST ? (near ? "" : `<button class="linkbtn" data-jump="${esc(s.id)}">Jump here ›</button>`)
+                        : `<a href="${dirUrl(s)}" target="_blank" rel="noopener">Directions ›</a>`}
+          </div>
+        </div>
+      </div>`).join("") : `<div class="empty small">This hunt doesn't have any stops yet.</div>`}
+    <p class="hint" style="text-align:center;margin-top:16px">${open ? `Get within ${geofence()} m of a stop and the Post button appears.` : "This hunt is closed, so posting is turned off."}</p>
+  </div>`;
+            $$("#tab-hunt [data-post]").forEach(b => b.onclick = () => openPost(state.stopById[b.dataset.post]));
+            $$("#tab-hunt [data-view]").forEach(b => b.onclick = () => openPhoto(state.posts.find(x => x.id === b.dataset.view)));
+            $$("#tab-hunt [data-jump]").forEach(b => b.onclick = () => {
+                const s = state.stopById[b.dataset.jump];
+                state.sim = { lat: s.lat + 0.0002, lng: s.lng, acc: 5, ts: Date.now() };
+                updateMeMarker(); render(); toast("Moved to " + s.name);
+                $("#tab-hunt").scrollTop = 0;
+            });
+        }
+
+        function renderFeed() {
+            const posts = state.posts.filter(p => state.stopById[p.locId]).slice(0, 80);
+            const mod = canEdit(state.meta);
+            if (!posts.length) { $("#tab-feed").innerHTML = `<div class="wrap empty">No posts yet.<br>Be the first one out the door!</div>`; return; }
+            $("#tab-feed").innerHTML = `<div class="wrap">${posts.map(p => {
+                const s = state.stopById[p.locId];
+                return `<div class="post">
+      <div class="hd"><div class="av" style="background:${userColor(p.username)}">${esc((p.username || "?")[0].toUpperCase())}</div>
+        <div class="who"><div class="nm">${esc(p.username)}</div><div class="sub">${esc(s.name)} · ${ago(p.ts)}</div></div>
+        <div class="plus">+${s.points}</div>
+        ${mod ? `<button class="linkbtn danger-link rm" data-rm="${esc(p.id)}">Remove</button>` : ""}</div>
+      <div class="ph" data-thumb="${esc(p.id)}"></div>
+      ${p.caption ? `<div class="cap">${esc(p.caption)}</div>` : ""}
+      ${state.confirmRm === p.id ? `<div class="confirm"><span>Remove this post for everyone? The player loses its points.</span>
+        <button class="btn small danger" data-rmyes="${esc(p.id)}">Remove</button><button class="btn small ghost" data-rmno>Keep</button></div>` : ""}
+    </div>`;
+            }).join("")}</div>`;
+            $$("#tab-feed [data-thumb]").forEach(el => {
+                loadThumb(el.dataset.thumb).then(u => { if (u) el.style.backgroundImage = `url(${u})`; });
+                el.onclick = () => openPhoto(state.posts.find(x => x.id === el.dataset.thumb));
+            });
+            $$("#tab-feed [data-rm]").forEach(b => b.onclick = () => { state.confirmRm = b.dataset.rm; renderFeed(); });
+            $$("#tab-feed [data-rmno]").forEach(b => b.onclick = () => { state.confirmRm = null; renderFeed(); });
+            $$("#tab-feed [data-rmyes]").forEach(b => b.onclick = () => removePost(state.posts.find(x => x.id === b.dataset.rmyes)));
+        }
+        async function removePost(p) {
+            if (!p) return;
+            const e = envPath(), u = {};
+            u[`${e}/posts/${p.id}`] = null; u[`${e}/thumbs/${p.id}`] = null; u[`${e}/photos/${p.id}`] = null;
+            u[`${e}/claims/${p.uid}/${p.locId}`] = null;
+            try { await db.ref().update(u); state.confirmRm = null; toast("Post removed"); }
+            catch (err) { toast("Couldn't remove it: " + err.message, 4000); }
+        }
+
+        function renderRanks() {
+            const b = state.board, me = uid();
+            if (!b.length) { $("#tab-ranks").innerHTML = `<div class="wrap empty">No one's on the board yet.</div>`; return; }
+            const medal = ["🥇", "🥈", "🥉"];
+            $("#tab-ranks").innerHTML = `<div class="wrap"><div class="sect">Leaderboard · ${b.length} player${b.length === 1 ? "" : "s"}</div>
+    ${b.map((u, i) => `<div class="rank ${u.uid === me ? "me" : ""}">
+      <div class="pos ${i < 3 ? "m" : ""}">${i < 3 ? medal[i] : i + 1}</div>
+      <div class="av" style="background:${userColor(u.username)}">${esc((u.username || "?")[0].toUpperCase())}</div>
+      <div class="nm">${esc(u.username)}<small>${u.stops.size} of ${state.stops.length} stops</small></div>
+      <div class="sc">${u.points}</div></div>`).join("")}
+    <p class="hint" style="text-align:center;margin-top:14px">Ties go to whoever got there first.</p></div>`;
+        }
+
+        // ---------------- photos ----------------
+        function loadThumb(id) {
+            const key = state.gameId + "/" + id;
+            if (thumbCache.has(key)) return thumbCache.get(key);
+            const pr = db.ref(`${envPath()}/thumbs/${id}`).once("value").then(s => s.val()).catch(() => null);
+            thumbCache.set(key, pr); return pr;
+        }
+        async function openPhoto(p) {
+            if (!p) return;
+            const s = state.stopById[p.locId] || { name: "" };
+            const lb = $("#lightbox"), img = $("#lbImg");
+            img.src = (await loadThumb(p.id)) || "";
+            $("#lbCap").innerHTML = `<b>${esc(p.username)}</b> at ${esc(s.name)}<br>${esc(p.caption || "")}`;
+            lb.classList.remove("hidden");
+            const full = (await db.ref(`${envPath()}/photos/${p.id}`).once("value")).val();
+            if (full && !lb.classList.contains("hidden")) img.src = full;
+        }
+
+        // ---------------- map ----------------
+        function addBaseLayers(m, el) {
+            if (!SHOW_TILES) { el.classList.add("notiles"); return; }
+            let lastLoad = 0, note = null;
+            const watch = layer => layer.on("tileload", () => { lastLoad = Date.now(); if (note) { note.remove(); note = null; } });
+            const streetsMain = watch(L.tileLayer(TILE_URL, { attribution: TILE_ATTR, maxZoom: 20 }));
+            const streetsAlt = watch(L.tileLayer(STREET_ALT_URL, { attribution: STREET_ALT_ATTR, maxZoom: 20, maxNativeZoom: 19 }));
+            const streets = L.layerGroup([streetsMain]);
+            // If the first street map refuses to load, switch to the backup source.
+            let errs = 0, swapped = false;
+            streetsMain.on("tileerror", () => {
+                if (swapped || lastLoad) return;
+                if (++errs >= 3) { swapped = true; streets.clearLayers(); streets.addLayer(streetsAlt); }
+            });
+            const sat = L.layerGroup([
+                watch(L.tileLayer(SAT_URL, { attribution: SAT_ATTR, maxZoom: 20, maxNativeZoom: 19 })),
+                watch(L.tileLayer(LABELS_URL, { attribution: TILE_ATTR, maxZoom: 20 }))
+            ]);
+            let box = null;
+            const Toggle = L.Control.extend({
+                options: { position: "topleft" }, onAdd() {
+                    box = L.DomUtil.create("div", "basemap");
+                    box.innerHTML = '<button type="button" data-b="streets">Streets</button><button type="button" data-b="satellite">Satellite</button>';
+                    L.DomEvent.disableClickPropagation(box);
+                    box.querySelectorAll("button").forEach(b => b.onclick = () => choose(b.dataset.b));
+                    return box;
+                }
+            });
+            new Toggle().addTo(m);
+            function choose(which) {
+                m.removeLayer(streets); m.removeLayer(sat);
+                (which === "satellite" ? sat : streets).addTo(m);
+                box.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.b === which));
+                writeLS("photohunt-basemap", which);
+                const t0 = Date.now();
+                setTimeout(() => {
+                    if (lastLoad >= t0 || note || !el.isConnected) return;
+                    note = document.createElement("div");
+                    note.className = "map-note tiles-fail";
+                    note.textContent = navigator.onLine === false
+                        ? "Map images can't load because this device is offline. The stops and posts still work."
+                        : "Map images aren't loading. If you opened this inside a preview window, download the file and open it in Chrome, Safari or Edge instead. A school or work network can also block map images.";
+                    el.appendChild(note);
+                }, 8000);
+            }
+            choose(readLS("photohunt-basemap") === "satellite" ? "satellite" : "streets");
+        }
+        function stopIcon(s, found) {
+            const cls = state.meta && s.id === state.meta.homeId ? "hotel" : (found ? "found" : "");
+            return L.divIcon({ className: "", html: `<div class="stop-pin ${cls}"><b>${found ? "✓" : s.points}</b></div>`, iconSize: [34, 34], iconAnchor: [4, 34], popupAnchor: [13, -30] });
+        }
+        function ensureMap() {
+            if (map) { setTimeout(() => { map.invalidateSize(); updateMapLayers(); }, 50); return; }
+            map = L.map("map", { zoomControl: false }).setView([36.1627, -86.7816], 11);
+            addBaseLayers(map, $("#map"));
+            if (!SHOW_TILES) {
+                const note = document.createElement("div");
+                note.className = "map-note";
+                note.textContent = "Street and satellite maps can't load in this preview. They appear when the app runs from your own website or from the downloaded file.";
+                $("#tab-map").appendChild(note);
+            }
+            L.control.zoom({ position: "topright" }).addTo(map);
+            stopLayer = L.layerGroup().addTo(map);
+            postLayer = L.layerGroup().addTo(map);
+            map.on("click", e => {
+                if (!TEST) return;
+                state.sim = { lat: e.latlng.lat, lng: e.latlng.lng, acc: 5, ts: Date.now() };
+                updateMeMarker(); render(); toast("Test location set");
+            });
+            mapNeedsFit = true;
+            updateMapLayers(); updateMeMarker();
+            setTimeout(() => { map.invalidateSize(); if (mapNeedsFit) updateMapLayers(); }, 60);
+        }
+        function fitAll() {
+            const pts = state.stops.map(s => [s.lat, s.lng])
+                .concat(state.posts.filter(p => typeof p.lat === "number" && state.stopById[p.locId]).map(p => [p.lat, p.lng]));
+            if (pts.length) map.fitBounds(L.latLngBounds(pts).pad(0.08), { maxZoom: 17 });
+        }
+        function updateMapLayers() {
+            if (!map || screen !== "screen-main") return;
+            stopLayer.clearLayers(); postLayer.clearLayers();
+            const counts = {};
+            state.posts.forEach(p => counts[p.locId] = (counts[p.locId] || 0) + 1);
+            state.stops.forEach(s => {
+                const f = state.myFound.has(s.id);
+                L.circle([s.lat, s.lng], { radius: geofence(), color: f ? "#1f8a84" : "#e2553b", weight: 1, fillOpacity: .07, interactive: false }).addTo(stopLayer);
+                const sm = L.marker([s.lat, s.lng], { icon: stopIcon(s, f), zIndexOffset: 500 }).addTo(stopLayer);
+                if (!SHOW_TILES) sm.bindTooltip(s.name.replace(/ \(.*\)/, ""), { permanent: true, direction: "right", offset: [14, -18], className: "stop-label" });
+                sm.bindPopup(`<div class="pop-nm">${esc(s.name)}</div><div class="pop-sub">${s.points} pts${s.task ? " · " + esc(s.task) : ""}<br>${counts[s.id] || 0} post${counts[s.id] === 1 ? "" : "s"} so far</div><a href="${dirUrl(s)}" target="_blank" rel="noopener">Directions ›</a>`);
+            });
+            state.posts.forEach(p => {
+                if (typeof p.lat !== "number" || !state.stopById[p.locId]) return;
+                const mk = L.marker([p.lat, p.lng], { icon: L.divIcon({ className: "", html: `<div class="post-dot" style="background:${userColor(p.username)}"></div>`, iconSize: [16, 16], iconAnchor: [8, 8] }) }).addTo(postLayer);
+                mk.bindPopup(`<div class="pop-ph" data-pop="${esc(p.id)}"></div><div class="pop-nm">${esc(p.username)}</div><div class="pop-sub">${esc(state.stopById[p.locId].name)} · ${ago(p.ts)}</div>${p.caption ? `<div style="margin-top:4px">${esc(p.caption)}</div>` : ""}`);
+                mk.on("popupopen", ev => {
+                    const el = ev.popup.getElement().querySelector("[data-pop]");
+                    loadThumb(p.id).then(u => { if (u && el) el.style.backgroundImage = `url(${u})`; });
+                    if (el) el.onclick = () => openPhoto(p);
+                });
+            });
+            if (mapNeedsFit && state.stops.length && $("#map").offsetWidth) { mapNeedsFit = false; fitAll(); }
+        }
+        function updateMeMarker() {
+            if (!map) return;
+            const p = currentPos();
+            if (!p) return;
+            if (!meMarker) {
+                meAcc = L.circle([p.lat, p.lng], { radius: p.acc || 10, color: "#2f7cf6", weight: 1, fillOpacity: .1, interactive: false }).addTo(map);
+                meMarker = L.marker([p.lat, p.lng], { icon: L.divIcon({ className: "", html: '<div class="me-dot"></div>', iconSize: [18, 18], iconAnchor: [9, 9] }), zIndexOffset: 1000 }).addTo(map);
+            } else {
+                meMarker.setLatLng([p.lat, p.lng]); meAcc.setLatLng([p.lat, p.lng]).setRadius(p.acc || 10);
+            }
+        }
+
+        // ---------------- posting ----------------
+        function closeSheet() {
+            $("#sheet").classList.add("hidden"); pending = null;
+            if (sheetCleanup) { const f = sheetCleanup; sheetCleanup = null; f(); }
+        }
+        function openPost(s) {
+            if (!s || !isOpen()) return;
+            pending = { stop: s, full: null, thumb: null };
+            $("#sheetPanel").innerHTML = `<div class="grab"></div>
+    <h2>${esc(s.name)}</h2>
+    <div class="hint" style="font-size:14px">${s.task ? `Challenge: <b style="color:var(--coral-dk)">${esc(s.task)}</b> · ` : ""}worth ${s.points} pts</div>
+    <input type="file" id="photoIn" accept="image/*" class="hidden">
+    <label class="pick" id="pickBox" for="photoIn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg><span>Take or choose a photo</span></label>
+    <img id="prev" class="preview hidden" alt="">
+    <label class="field"><span>Caption</span><textarea id="capIn" rows="2" maxlength="${CAPTION_MAX}" placeholder="Say something…"></textarea></label>
+    <div class="count"><span id="capN">0</span>/${CAPTION_MAX}</div>
+    <div class="err" id="postErr"></div>
+    <div class="stack"><button class="btn" id="postBtn" disabled>Post as ${esc(state.profile.username)}</button>
+    <button class="btn ghost" id="cancelBtn">Cancel</button></div>`;
+            $("#sheet").classList.remove("hidden"); $("#sheetPanel").scrollTop = 0;
+            $("#cancelBtn").onclick = closeSheet;
+            $("#capIn").oninput = e => $("#capN").textContent = e.target.value.length;
+            $("#photoIn").onchange = async e => {
+                const file = e.target.files && e.target.files[0]; if (!file) return;
+                $("#postErr").textContent = ""; $("#postBtn").disabled = true; $("#postBtn").textContent = "Preparing photo…";
+                try {
+                    const img = await loadImage(file);
+                    pending.full = shrink(img, 1280, 0.72, 550000) || shrink(img, 960, 0.6, 550000);
+                    pending.thumb = shrink(img, 400, 0.62, 75000) || shrink(img, 280, 0.55, 75000);
+                    if (!pending.full || !pending.thumb) throw new Error("That photo couldn't be processed. Try another.");
+                    $("#prev").src = pending.full; $("#prev").classList.remove("hidden");
+                    $("#pickBox span").textContent = "Change photo";
+                    $("#postBtn").disabled = false;
+                } catch (err) { $("#postErr").textContent = err.message; }
+                $("#postBtn").textContent = `Post as ${state.profile.username}`;
+            };
+            $("#postBtn").onclick = submitPost;
+        }
+        function loadImage(file) {
+            return new Promise((res, rej) => {
+                const url = URL.createObjectURL(file), img = new Image();
+                img.onload = () => res(img);
+                img.onerror = () => rej(new Error("This phone can't read that file. Try a regular photo."));
+                img.src = url;
+            });
+        }
+        function shrink(img, max, q, limit) {
+            const sc = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+            const w = Math.round(img.naturalWidth * sc), h = Math.round(img.naturalHeight * sc);
+            const c = document.createElement("canvas"); c.width = w; c.height = h;
+            c.getContext("2d").drawImage(img, 0, 0, w, h);
+            const out = c.toDataURL("image/jpeg", q);
+            return out.length <= limit ? out : null;
+        }
+        async function submitPost() {
+            if (!pending || !pending.full) return;
+            const s = pending.stop, btn = $("#postBtn"), errEl = $("#postErr");
+            errEl.textContent = "";
+            if (state.myFound.has(s.id)) { errEl.textContent = "You've already posted here."; return; }
+            if (!inRange(s)) { errEl.textContent = `You need to be within ${geofence()} m of ${s.name} to post. Move a little closer and try again.`; return; }
+            const p = currentPos(), me = uid(), e = envPath();
+            btn.disabled = true; btn.textContent = "Uploading…";
+            const id = db.ref(e + "/posts").push().key;
+            const caption = $("#capIn").value.trim().slice(0, CAPTION_MAX);
+            const updates = {};
+            updates[`${e}/posts/${id}`] = {
+                uid: me, username: state.profile.username, locId: s.id, caption,
+                lat: +p.lat.toFixed(6), lng: +p.lng.toFixed(6), acc: Math.round(p.acc || 0), ts: TS()
+            };
+            updates[`${e}/claims/${me}/${s.id}`] = id;
+            updates[`${e}/thumbs/${id}`] = pending.thumb;
+            updates[`${e}/photos/${id}`] = pending.full;
+            const thumb = pending.thumb;
+            try {
+                await db.ref().update(updates);
+                thumbCache.set(state.gameId + "/" + id, Promise.resolve(thumb));
+                closeSheet();
+                toast(`+${s.points} points at ${s.name}!`);
+            } catch (err) {
+                errEl.textContent = String(err.message || err).toLowerCase().includes("permission")
+                    ? "That post was refused. You may have already posted here, or the hunt may be closed."
+                    : "Upload failed. Check your signal and try again.";
+                btn.disabled = false; btn.textContent = `Post as ${state.profile.username}`;
+            }
+        }
+
+        // ---------------- account sheet ----------------
+        function openAccount() {
+            $("#sheetPanel").innerHTML = `<div class="grab"></div>
+    <h2>${esc(state.profile.username)}</h2>
+    <div class="hint" style="font-size:14px">${esc(state.user.email || "")}</div>
+    <div class="stats" style="margin:16px 0">
+      <div class="stat" style="background:#fff;border:1px solid var(--line)"><div class="n">${state.myPts}</div><div class="l" style="color:var(--muted)">Points</div></div>
+      <div class="stat" style="background:#fff;border:1px solid var(--line)"><div class="n">${state.myFound.size}</div><div class="l" style="color:var(--muted)">Stops found</div></div>
+    </div>
+    <div class="stack">
+      <button class="btn ghost" id="acSwitch">Switch hunt</button>
+      ${state.isOrg ? '<button class="btn ghost" id="acOrg">Organizer tools</button>' : ""}
+      ${DEMO ? '<button class="btn ghost" id="acReset">Reset the demo</button>' : ""}
+      <button class="btn ghost" id="outBtn">Sign out</button>
+    </div>`;
+            $("#sheet").classList.remove("hidden"); $("#sheetPanel").scrollTop = 0;
+            $("#acSwitch").onclick = () => { closeSheet(); showPicker(); };
+            if ($("#acOrg")) $("#acOrg").onclick = () => { closeSheet(); openOrg(); };
+            if ($("#acReset")) $("#acReset").onclick = () => { try { localStorage.removeItem(DEMO_KEY); localStorage.removeItem(LAST_KEY); } catch { } location.reload(); };
+            $("#outBtn").onclick = () => { closeSheet(); auth.signOut(); };
+        }
+
+        // ============================================================================
+        // Organizer tools
+        // ============================================================================
+        function wireOrg() {
+            $("#pickOrg").onclick = openOrg;
+            $("#pickOut").onclick = () => auth.signOut();
+            $("#orgBack").onclick = () => { if (state.gameId && state.meta) { show("screen-main"); setTab(state.tab); } else showPicker(); };
+            $("#editBack").onclick = () => { state.draft = null; openOrg(); };
+            $("#editSave").onclick = saveEditor;
+        }
+        function openOrg() { show("screen-org"); renderOrg(); }
+        function renderOrg() {
+            const body = $("#orgBody");
+            if (!state.isOrg) {
+                body.innerHTML = `<div class="empty small">Only organizers can make hunts. Ask the app owner to add the email you sign in with.</div>`;
+                return;
+            }
+            const games = Object.entries(state.gamesMeta).map(([id, m]) => ({ ...m, id }))
+                .filter(g => state.isOwner || g.owner === uid())
+                .sort((a, b) => num(b.created, 0) - num(a.created, 0));
+            let html = `<div class="org-head"><div><h2>Your hunts</h2><p class="hint">${state.isOwner ? "As the owner, you can manage every hunt." : "You can manage the hunts you created."}</p></div>
+    <button class="btn small" id="orgNew">+ New hunt</button></div>`;
+            if (state.isOwner && !state.gamesMeta[DEFAULT_GAME.id]) html += `<div class="card soft">
+      <h3>${nameHTML(DEFAULT_GAME.meta.name1, DEFAULT_GAME.meta.name2)}</h3>
+      <p>Add the Nashville hunt with its ${DEFAULT_GAME.stops.length} stops, ready to edit.</p>
+      <button class="btn small teal" id="orgImport">Add this hunt</button></div>`;
+            html += games.length ? games.map(g => `<div class="row-card">
+      <div class="rc-top"><div class="rc-name">${nameHTML(g.name1, g.name2)}</div>
+        <span class="chip ${g.status === "closed" ? "closed" : "open"}">${g.status === "closed" ? "Closed" : "Open"}</span></div>
+      <div class="rc-link" id="link-${esc(g.id)}">${esc(gameLink(g.id))}</div>
+      <div class="btn-row">
+        <button class="btn small" data-edit="${esc(g.id)}">Edit</button>
+        <button class="btn small ghost" data-copy="${esc(g.id)}">Copy link</button>
+        <button class="btn small ghost" data-toggle="${esc(g.id)}">${g.status === "closed" ? "Reopen" : "Close"}</button>
+        <button class="btn small ghost" data-play="${esc(g.id)}">Play</button>
+      </div></div>`).join("")
+                : `<div class="empty small">No hunts yet. Tap <b>New hunt</b> to make one.</div>`;
+            if (state.isOwner) {
+                const orgs = Object.entries(state.organizers).map(([k, v]) => ({ k, email: (v && v.email) || k.replace(/,/g, ".") }))
+                    .sort((a, b) => a.email.localeCompare(b.email));
+                html += `<div class="sect" style="margin-top:28px">Organizers</div>
+      <p class="hint" style="margin:0 2px 8px">Organizers can make hunts and manage the ones they made. Add them by the email they sign in with.</p>
+      <div class="card" style="padding:6px 14px 12px">
+        ${orgs.length ? orgs.map(o => `<div class="org-row"><span>${esc(o.email)}</span><button class="linkbtn danger-link" data-unorg="${esc(o.k)}">Remove</button></div>`).join("")
+                        : `<p class="hint" style="margin:10px 0 4px">No other organizers yet.</p>`}
+        <form class="add-row" id="orgAddForm"><input id="orgEmail" type="email" placeholder="colleague@tcu.edu" aria-label="Organizer email"><button class="btn small teal" type="submit">Add</button></form>
+        <div class="err" id="orgErr" style="margin:0;min-height:0"></div>
+      </div>`;
+            }
+            body.innerHTML = html;
+            $("#orgNew").onclick = () => openEditor(null);
+            if ($("#orgImport")) $("#orgImport").onclick = importDefault;
+            $$("#orgBody [data-edit]").forEach(b => b.onclick = () => openEditor(b.dataset.edit));
+            $$("#orgBody [data-play]").forEach(b => b.onclick = () => openGame(b.dataset.play));
+            $$("#orgBody [data-copy]").forEach(b => b.onclick = async () => {
+                const link = gameLink(b.dataset.copy);
+                if (await copyText(link)) { toast("Link copied"); return; }
+                const el = $("#link-" + CSS.escape(b.dataset.copy));
+                const r = document.createRange(); r.selectNodeContents(el);
+                const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+                toast("The link is selected. Copy it from there.");
+            });
+            $$("#orgBody [data-toggle]").forEach(b => b.onclick = async () => {
+                const id = b.dataset.toggle, m = state.gamesMeta[id];
+                const next = m.status === "closed" ? "open" : "closed";
+                try { await db.ref("gameMeta/" + id).update({ status: next, updated: TS() }); toast(next === "open" ? "Hunt reopened" : "Hunt closed. Players can look but not post."); }
+                catch (err) { toast("Couldn't change it: " + err.message, 4000); }
+            });
+            $$("#orgBody [data-unorg]").forEach(b => b.onclick = async () => {
+                try { await db.ref("organizers/" + b.dataset.unorg).set(null); toast("Organizer removed"); }
+                catch (err) { toast("Couldn't remove: " + err.message, 4000); }
+            });
+            if ($("#orgAddForm")) $("#orgAddForm").onsubmit = async e => {
+                e.preventDefault();
+                const email = $("#orgEmail").value.trim().toLowerCase();
+                $("#orgErr").textContent = "";
+                if (!/^\S+@\S+\.\S+$/.test(email)) { $("#orgErr").textContent = "Type a full email address."; return; }
+                try { await db.ref("organizers/" + emailKey(email)).set({ email, added: TS() }); toast("Added " + email); }
+                catch (err) { $("#orgErr").textContent = "Couldn't add: " + err.message; }
+            };
+        }
+        async function importDefault() {
+            const d = DEFAULT_GAME, stops = {};
+            d.stops.forEach((s, i) => { const { id, ...rest } = s; stops[id] = clean({ ...rest, order: i }); });
+            try {
+                await db.ref().update({ ["gameMeta/" + d.id]: { ...d.meta, owner: uid(), created: TS(), updated: TS() }, ["gameStops/" + d.id]: stops });
+                toast("Added " + nameText(d.meta));
+            } catch (err) { toast("Couldn't add it: " + err.message, 4000); }
+        }
+
+        // ---------------- hunt editor ----------------
+        async function openEditor(id) {
+            let d;
+            if (id) {
+                const m = state.gamesMeta[id]; if (!m) return;
+                const raw = (await db.ref("gameStops/" + id).once("value")).val() || {};
+                const stops = Object.entries(raw).map(([sid, s]) => ({ ...s, id: sid })).sort((a, b) => num(a.order, 0) - num(b.order, 0));
+                d = { isNew: false, id, idTouched: true, meta: { ...m }, stops };
+            } else {
+                d = {
+                    isNew: true, id: "", idTouched: false, stops: [],
+                    meta: { name1: "", name2: "Hunt", tagline: "", homeLabel: "home base", geofence: 100, ppm: 10, status: "open", homeId: null }
+                };
+            }
+            d.confirmDel = false; d.confirmStop = null;
+            state.draft = d;
+            show("screen-edit");
+            renderEditor();
+        }
+        function renderEditor() {
+            const d = state.draft, m = d.meta;
+            $("#editTitle").textContent = d.isNew ? "New hunt" : "Edit hunt";
+            $("#editErr").textContent = "";
+            $("#editBody").innerHTML = `
+    <div class="logo preview-name" id="edPreview"></div>
+    <div class="card">
+      <div class="field-row">
+        <label class="field"><span>Hunt name</span><input id="ed_name1" maxlength="40" value="${esc(m.name1)}" placeholder="Music City"></label>
+        <label class="field"><span>Accent word</span><input id="ed_name2" maxlength="20" value="${esc(m.name2 || "")}" placeholder="Hunt"></label>
+      </div>
+      <div class="hint" style="margin:-8px 0 14px">The accent word shows in color, as in the preview above. Leave it blank if you don't want one.</div>
+      <label class="field"><span>Tagline (shown on the sign-in screen)</span><textarea id="ed_tag" rows="2" maxlength="200" placeholder="A GPS photo scavenger hunt across…">${esc(m.tagline || "")}</textarea></label>
+      <label class="field"><span>Link name</span><input id="ed_id" maxlength="40" value="${esc(d.id)}" ${d.isNew ? "" : "disabled"} placeholder="music-city-hunt" autocapitalize="off" spellcheck="false">
+        <div class="hint" id="ed_link"></div></label>
+      <div class="field-row">
+        <label class="field"><span>Unlock distance (meters)</span><input id="ed_geo" type="number" inputmode="numeric" min="20" max="2000" value="${num(m.geofence, 100)}"></label>
+        <label class="field"><span>Points per mile</span><input id="ed_ppm" type="number" inputmode="decimal" min="0" max="1000" value="${num(m.ppm, 10)}"></label>
+      </div>
+      <label class="field"><span>Home base is called</span><input id="ed_home" maxlength="40" value="${esc(m.homeLabel || "")}" placeholder="the hotel">
+        <div class="hint">Used in phrases like "7.0 mi from the hotel".</div></label>
+      <label class="field" style="margin-bottom:4px"><span>Status</span><select id="ed_status">
+        <option value="open">Open: players can post</option><option value="closed">Closed: players can look but not post</option></select></label>
+    </div>
+    <div class="sect-row"><div class="sect">Stops</div><button class="btn small teal" id="ed_add">+ Add stop</button></div>
+    <div id="edStops"></div>
+    ${d.isNew ? "" : `<div class="danger-zone" id="edDanger"></div>`}`;
+            $("#ed_status").value = m.status === "closed" ? "closed" : "open";
+            const syncId = () => {
+                if (d.isNew && !d.idTouched) { d.id = slugify([m.name1, m.name2].filter(Boolean).join(" ")); $("#ed_id").value = d.id; }
+                updateEditorPreview();
+            };
+            $("#ed_name1").oninput = e => { m.name1 = e.target.value; syncId(); };
+            $("#ed_name2").oninput = e => { m.name2 = e.target.value; syncId(); };
+            $("#ed_tag").oninput = e => { m.tagline = e.target.value; };
+            $("#ed_id").oninput = e => {
+                d.idTouched = true;
+                d.id = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, 40);
+                if (e.target.value !== d.id) e.target.value = d.id;
+                updateEditorPreview();
+            };
+            $("#ed_geo").oninput = e => { m.geofence = parseFloat(e.target.value); };
+            $("#ed_ppm").oninput = e => { m.ppm = parseFloat(e.target.value); renderEditorStops(); };
+            $("#ed_home").oninput = e => { m.homeLabel = e.target.value; };
+            $("#ed_status").onchange = e => { m.status = e.target.value; };
+            $("#ed_add").onclick = () => openStopEditor(null);
+            updateEditorPreview(); renderEditorStops(); renderDanger();
+        }
+        function updateEditorPreview() {
+            const d = state.draft, m = d.meta;
+            $("#edPreview").innerHTML = m.name1 || m.name2 ? nameHTML(m.name1, m.name2) : '<span style="color:var(--muted)">Your hunt</span>';
+            const id = d.isNew ? slugify(d.id) : d.id;
+            $("#ed_link").innerHTML = d.isNew
+                ? `Players open the hunt with this link: <b>${esc(gameLink(id || "…"))}</b>`
+                : `The link can't change after a hunt is made: <b>${esc(gameLink(id))}</b>`;
+        }
+        function renderEditorStops() {
+            const d = state.draft;
+            const raw = Object.fromEntries(d.stops.map((s, i) => [s.id, { ...s, order: i }]));
+            const built = buildStops(d.meta, raw);
+            const homeLabel = d.meta.homeLabel || "home base";
+            $("#edStops").innerHTML = built.length ? built.map((s, i) => d.confirmStop === i
+                ? `<div class="stop-row confirming"><div class="body"><b>Delete ${esc(s.name)}?</b><div class="hint">Posts already made here stop counting.</div></div>
+        <div class="sr-btns"><button class="btn small danger" data-sdelyes="${i}">Delete</button><button class="btn small ghost" data-sdelno>Keep</button></div></div>`
+                : `<div class="stop-row">
+        <div class="pts">${s.points}<small>PTS</small></div>
+        <div class="body"><div class="sr-name">${esc(s.name)}${s.id === d.meta.homeId ? ' <span class="chip home">Home base</span>' : ""}</div>
+          <div class="hint">${s.id === d.meta.homeId ? "Distances are measured from here" : `${s.miles} mi from ${esc(homeLabel)}`}${s.task ? " · " + esc(s.task) : ""}</div></div>
+        <div class="sr-btns">
+          <button class="iconbtn" data-up="${i}" ${i === 0 ? "disabled" : ""} aria-label="Move ${esc(s.name)} up">↑</button>
+          <button class="linkbtn" data-sedit="${i}">Edit</button>
+          <button class="linkbtn danger-link" data-sdel="${i}">Delete</button>
+        </div></div>`).join("")
+                : `<div class="empty small">No stops yet. Start with your home base, the place players start from.</div>`;
+            $$("#edStops [data-sedit]").forEach(b => b.onclick = () => openStopEditor(+b.dataset.sedit));
+            $$("#edStops [data-sdel]").forEach(b => b.onclick = () => { d.confirmStop = +b.dataset.sdel; renderEditorStops(); });
+            $$("#edStops [data-sdelno]").forEach(b => b.onclick = () => { d.confirmStop = null; renderEditorStops(); });
+            $$("#edStops [data-sdelyes]").forEach(b => b.onclick = () => {
+                const i = +b.dataset.sdelyes, [gone] = d.stops.splice(i, 1);
+                if (gone && d.meta.homeId === gone.id) d.meta.homeId = null;
+                d.confirmStop = null; renderEditorStops();
+            });
+            $$("#edStops [data-up]").forEach(b => b.onclick = () => {
+                const i = +b.dataset.up; if (i < 1) return;
+                [d.stops[i - 1], d.stops[i]] = [d.stops[i], d.stops[i - 1]]; renderEditorStops();
+            });
+        }
+        function renderDanger() {
+            const el = $("#edDanger"); if (!el) return;
+            const d = state.draft;
+            el.innerHTML = d.confirmDel
+                ? `<p><b>Delete this hunt?</b> Its stops, posts, photos and leaderboard are removed for everyone. This can't be undone.</p>
+       <div class="btn-row"><button class="btn small danger" id="edDelYes">Delete hunt</button><button class="btn small ghost" id="edDelNo">Keep it</button></div>`
+                : `<button class="linkbtn danger-link" id="edDel">Delete this hunt…</button>`;
+            if ($("#edDel")) $("#edDel").onclick = () => { d.confirmDel = true; renderDanger(); };
+            if ($("#edDelNo")) $("#edDelNo").onclick = () => { d.confirmDel = false; renderDanger(); };
+            if ($("#edDelYes")) $("#edDelYes").onclick = async () => {
+                try {
+                    await db.ref().update({ ["gameMeta/" + d.id]: null, ["gameStops/" + d.id]: null, ["games/" + d.id]: null });
+                    if (readLS(LAST_KEY) === d.id) { try { localStorage.removeItem(LAST_KEY); } catch { } }
+                    state.draft = null; toast("Hunt deleted"); openOrg();
+                } catch (err) { $("#editErr").textContent = "Couldn't delete it: " + err.message; }
+            };
+        }
+        async function saveEditor() {
+            const d = state.draft; if (!d) return;
+            const m = d.meta, errEl = $("#editErr"), btn = $("#editSave");
+            const fail = msg => { errEl.textContent = msg; };
+            errEl.textContent = "";
+            const id = d.isNew ? slugify(d.id) : d.id;
+            if (!String(m.name1 || "").trim()) return fail("Give the hunt a name.");
+            if (!/^[a-z0-9-]{1,40}$/.test(id)) return fail("The link name can use lowercase letters, numbers and dashes.");
+            if (d.isNew && state.gamesMeta[id]) return fail("Another hunt already uses that link name. Try a different one.");
+            if (!d.stops.length) return fail("Add at least one stop.");
+            const geo = num(m.geofence, NaN), ppm = num(m.ppm, NaN);
+            if (!(geo >= 20 && geo <= 2000)) return fail("Unlock distance must be between 20 and 2,000 meters.");
+            if (!(ppm >= 0 && ppm <= 1000)) return fail("Points per mile must be between 0 and 1,000.");
+            const homeId = d.stops.some(s => s.id === m.homeId) ? m.homeId : d.stops[0].id;
+            const old = state.gamesMeta[id];
+            const meta = clean({
+                name1: m.name1.trim(), name2: (m.name2 || "").trim(), tagline: (m.tagline || "").trim(),
+                homeLabel: (m.homeLabel || "").trim() || "home base", geofence: Math.round(geo), ppm,
+                status: m.status === "closed" ? "closed" : "open", homeId,
+                owner: d.isNew ? uid() : (old && old.owner) || uid(),
+                created: d.isNew ? TS() : (old && old.created) || TS(), updated: TS()
+            });
+            const stops = {};
+            d.stops.forEach((s, i) => stops[s.id] = clean({ name: s.name, about: s.about || "", task: s.task || "", lat: s.lat, lng: s.lng, miles: s.miles, points: s.points, order: i }));
+            btn.disabled = true; btn.textContent = "Saving…";
+            try {
+                await db.ref().update({ ["gameMeta/" + id]: meta, ["gameStops/" + id]: stops });
+                if (homeId !== m.homeId) toast(`Saved. ${d.stops[0].name} is the home base.`, 3500); else toast("Hunt saved");
+                state.draft = null; openOrg();
+            } catch (err) {
+                fail(String(err.message || err).toLowerCase().includes("permission")
+                    ? "Firebase refused the save. Check that your account is an organizer and that the latest database.rules.json is published."
+                    : "Couldn't save: " + err.message);
+            }
+            btn.disabled = false; btn.textContent = "Save hunt";
+        }
+
+        // ---------------- stop editor ----------------
+        function editPinIcon() {
+            return L.divIcon({ className: "", html: '<div class="stop-pin"><b>●</b></div>', iconSize: [34, 34], iconAnchor: [4, 34] });
+        }
+        function openStopEditor(idx) {
+            const d = state.draft, isNewStop = idx == null;
+            const s = isNewStop ? { id: newId("s"), name: "", about: "", task: "", lat: null, lng: null } : { ...d.stops[idx] };
+            const isHome = d.meta.homeId === s.id || (isNewStop && !d.stops.length);
+            $("#sheetPanel").innerHTML = `<div class="grab"></div>
+    <h2>${isNewStop ? "Add a stop" : "Edit stop"}</h2>
+    <p class="hint" style="font-size:13.5px;margin:2px 0 12px">Search for a place, use your location, or tap the map to drop the pin. Drag the pin to fine-tune it.</p>
+    <form id="stSearch" class="add-row"><input id="st_q" type="search" placeholder="Search for a place" aria-label="Search for a place"><button class="btn small teal" type="submit">Search</button></form>
+    <div id="stResults"></div>
+    <div id="stopMap"></div>
+    <div class="coord-row"><span id="stCoords" class="hint" style="margin:0"></span><button type="button" class="linkbtn" id="stHere">Use my location</button></div>
+    <label class="field"><span>Stop name</span><input id="st_name" maxlength="80" value="${esc(s.name)}"></label>
+    <label class="field"><span>Description</span><input id="st_about" maxlength="140" value="${esc(s.about || "")}" placeholder="One line about the place"></label>
+    <label class="field"><span>Photo challenge</span><input id="st_task" maxlength="80" value="${esc(s.task || "")}" placeholder="e.g. Selfie with the statue"></label>
+    <div class="field-row">
+      <label class="field"><span>Miles from home base</span><input id="st_miles" type="number" inputmode="decimal" step="0.1" min="0" value="${typeof s.miles === "number" ? s.miles : ""}"></label>
+      <label class="field"><span>Points</span><input id="st_points" type="number" inputmode="numeric" min="0" max="10000" value="${typeof s.points === "number" ? s.points : ""}"></label>
+    </div>
+    <div class="hint" id="stAuto" style="margin:-8px 0 12px"></div>
+    <label class="check"><input type="checkbox" id="st_home" ${isHome ? "checked" : ""}> <span>This is the home base. Distances are measured from here.</span></label>
+    <div class="err" id="stErr"></div>
+    <div class="stack"><button class="btn" id="stSave">${isNewStop ? "Add stop" : "Save stop"}</button><button class="btn ghost" id="stCancel">Cancel</button></div>`;
+            $("#sheet").classList.remove("hidden"); $("#sheetPanel").scrollTop = 0;
+
+            const home = d.stops.find(x => x.id === d.meta.homeId);
+            const updAuto = () => {
+                const homeNow = $("#st_home").checked ? null : (home && home.id !== s.id ? home : null);
+                $("#stCoords").textContent = s.lat != null ? `Pin at ${s.lat.toFixed(5)}, ${s.lng.toFixed(5)}` : "No pin yet";
+                const autoMiles = homeNow && s.lat != null ? +(distM(homeNow, s) / 1609.34).toFixed(1) : 0;
+                const typed = parseFloat($("#st_miles").value);
+                const miles = isFinite(typed) ? typed : autoMiles;
+                const autoPts = Math.max(MIN_POINTS, Math.round(miles * num(d.meta.ppm, 10)));
+                $("#st_miles").placeholder = `${autoMiles} (auto)`;
+                $("#st_points").placeholder = `${autoPts} (auto)`;
+                $("#stAuto").textContent = $("#st_home").checked ? "The home base counts as 0 miles."
+                    : homeNow ? "Leave these blank to use the straight-line distance and the hunt's points per mile."
+                        : "Once the hunt has a home base, distances and points fill in automatically.";
+            };
+            const start = s.lat != null ? [s.lat, s.lng] : home ? [home.lat, home.lng] : d.stops[0] ? [d.stops[0].lat, d.stops[0].lng] : [36.1627, -86.7816];
+            const sm = L.map("stopMap", { zoomControl: true }).setView(start, s.lat != null ? 17 : 13);
+            addBaseLayers(sm, $("#stopMap"));
+            // the hunt's other stops, for reference
+            d.stops.forEach(o => {
+                if (o.id === s.id || typeof o.lat !== "number") return;
+                L.circleMarker([o.lat, o.lng], { radius: 6, color: "#fff", weight: 2, fillColor: o.id === d.meta.homeId ? "#1d2235" : "#e2553b", fillOpacity: 1, interactive: false })
+                    .bindTooltip(o.name, { permanent: true, direction: "right", offset: [8, 0], className: "stop-label" }).addTo(sm);
+            });
+            let marker = null;
+            const place = (lat, lng, zoom) => {
+                s.lat = +(+lat).toFixed(6); s.lng = +(+lng).toFixed(6);
+                if (!marker) {
+                    marker = L.marker([s.lat, s.lng], { draggable: true, icon: editPinIcon() }).addTo(sm);
+                    marker.on("dragend", e => { const p = e.target.getLatLng(); s.lat = +p.lat.toFixed(6); s.lng = +p.lng.toFixed(6); updAuto(); });
+                } else marker.setLatLng([s.lat, s.lng]);
+                if (zoom) sm.setView([s.lat, s.lng], zoom);
+                updAuto();
+            };
+            if (s.lat != null) place(s.lat, s.lng);
+            sm.on("click", e => place(e.latlng.lat, e.latlng.lng));
+            setTimeout(() => sm.invalidateSize(), 80);
+            sheetCleanup = () => sm.remove();
+            updAuto();
+
+            $("#st_home").onchange = updAuto;
+            $("#st_miles").oninput = updAuto;
+            $("#stSearch").onsubmit = async e => {
+                e.preventDefault();
+                const q = $("#st_q").value.trim(); if (!q) return;
+                const box = $("#stResults"); box.innerHTML = `<div class="hint" style="margin:0 0 8px">Searching…</div>`;
+                try {
+                    const c = sm.getCenter();
+                    const url = "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q=" + encodeURIComponent(q) +
+                        `&viewbox=${c.lng - 0.6},${c.lat + 0.6},${c.lng + 0.6},${c.lat - 0.6}`;
+                    const res = await fetch(url, { headers: { "Accept-Language": "en" } });
+                    if (!res.ok) throw new Error("search failed");
+                    const list = await res.json();
+                    if (!list.length) { box.innerHTML = `<div class="hint" style="margin:0 0 8px">No places found. Try adding the city, or tap the map instead.</div>`; return; }
+                    box.innerHTML = list.map((r, i) => `<button type="button" class="result" data-r="${i}">${esc(r.display_name)}</button>`).join("");
+                    $$("#stResults [data-r]").forEach(b => b.onclick = () => {
+                        const r = list[+b.dataset.r];
+                        place(r.lat, r.lon, 17);
+                        if (!$("#st_name").value.trim()) $("#st_name").value = (r.name || r.display_name.split(",")[0]).trim();
+                        box.innerHTML = "";
+                    });
+                } catch {
+                    box.innerHTML = `<div class="hint" style="margin:0 0 8px">Place search isn't available here. Tap the map to drop the pin instead.</div>`;
+                }
+            };
+            $("#stHere").onclick = () => {
+                const fallback = () => { if (state.sim) place(state.sim.lat, state.sim.lng, 17); else $("#stCoords").textContent = "Couldn't get your location. Tap the map instead."; };
+                if (!navigator.geolocation) return fallback();
+                $("#stCoords").textContent = "Finding your location…";
+                navigator.geolocation.getCurrentPosition(p => place(p.coords.latitude, p.coords.longitude, 17), fallback, { enableHighAccuracy: true, timeout: 15000 });
+            };
+            $("#stCancel").onclick = closeSheet;
+            $("#stSave").onclick = () => {
+                const err = msg => { $("#stErr").textContent = msg; };
+                const name = $("#st_name").value.trim();
+                if (!name) return err("Give the stop a name.");
+                if (s.lat == null) return err("Place the stop on the map first.");
+                s.name = name; s.about = $("#st_about").value.trim(); s.task = $("#st_task").value.trim();
+                const mi = parseFloat($("#st_miles").value); s.miles = isFinite(mi) && mi >= 0 ? +mi.toFixed(2) : undefined;
+                const pt = parseInt($("#st_points").value, 10); s.points = isFinite(pt) && pt >= 0 ? pt : undefined;
+                if ($("#st_home").checked) d.meta.homeId = s.id;
+                else if (d.meta.homeId === s.id) d.meta.homeId = null;
+                if (isNewStop) d.stops.push(s); else d.stops[idx] = s;
+                closeSheet(); renderEditorStops();
+            };
+        }
+
+        // ============================================================================
+        // DEMO MODE: an in-browser stand-in for Firebase, saved in this browser
+        // ============================================================================
+        const DEMO_KEY = "photohunt-demo-v1";
+        function makeFakeFirebase() {
+            let saved = null;
+            try { saved = JSON.parse(localStorage.getItem(DEMO_KEY) || "null"); } catch { }
+            const TSV = { ".sv": "timestamp" }, tree = (saved && saved.tree) || {}, subs = new Set();
+            const parts = p => String(p || "").split("/").filter(Boolean);
+            const read = p => parts(p).reduce((o, k) => (o && typeof o === "object") ? o[k] : undefined, tree);
+            const clone = v => v === undefined ? null : JSON.parse(JSON.stringify(v));
+            const fill = v => (v && typeof v === "object")
+                ? (v[".sv"] === "timestamp" ? Date.now() : Object.fromEntries(Object.entries(v).filter(([, x]) => x !== undefined).map(([k, x]) => [k, fill(x)])))
+                : v;
+            const prune = ks => {   // remove empty parents, like Firebase does
+                for (let n = ks.length - 1; n > 0; n--) {
+                    const parent = ks.slice(0, n - 1).reduce((o, k) => o && o[k], tree), key = ks[n - 1];
+                    const node = parent && parent[key];
+                    if (node && typeof node === "object" && !Object.keys(node).length) delete parent[key]; else break;
+                }
+            };
+            const write = (p, v) => {
+                const ks = parts(p); if (!ks.length) return;
+                let o = tree;
+                for (const k of ks.slice(0, -1)) { if (!o[k] || typeof o[k] !== "object") o[k] = {}; o = o[k]; }
+                if (v == null) { delete o[ks[ks.length - 1]]; prune(ks); } else o[ks[ks.length - 1]] = fill(v);
+            };
+            const accounts = {};
+            if (saved && saved.accounts) for (const [k, a] of Object.entries(saved.accounts)) accounts[k] = { pass: a.pass, user: mkUser(k, a.uid, a.email) };
+            let current = saved && saved.current && accounts[saved.current] ? accounts[saved.current].user : null;
+            let listener = null, saveT = null;
+            function mkUser(k, id, email) { return { uid: id, email, delete: async () => { delete accounts[k]; current = null; persist(); } }; }
+            function persist() {
+                clearTimeout(saveT);
+                saveT = setTimeout(() => {
+                    try {
+                        const t = JSON.parse(JSON.stringify(tree));
+                        // full-size photos aren't kept (too big for browser storage); sample photos are redrawn on load
+                        for (const g of Object.values(t.games || {})) for (const env of Object.values(g || {})) {
+                            if (!env || typeof env !== "object") continue;
+                            delete env.photos;
+                            if (env.thumbs) for (const k of Object.keys(env.thumbs)) if (k.startsWith("seed")) delete env.thumbs[k];
+                        }
+                        const acc = {};
+                        for (const [k, a] of Object.entries(accounts)) acc[k] = { pass: a.pass, uid: a.user.uid, email: a.user.email };
+                        localStorage.setItem(DEMO_KEY, JSON.stringify({ tree: t, accounts: acc, current: current ? current.email.toLowerCase() : null }));
+                    } catch { }
+                }, 400);
+            }
+            const snap = (key, v) => ({
+                key, val: () => clone(v), exists: () => v != null,
+                forEach(fn) { if (v && typeof v === "object") Object.keys(v).forEach(k => fn(snap(k, v[k]))); }
+            });
+            const notify = () => { subs.forEach(s => s.cb(snap(s.key, read(s.path)))); persist(); };
+            let n = 0;
+            const newKey = () => "d" + Date.now().toString(36) + (n++).toString(36).padStart(4, "0");
+            const ref = (path = "") => {
+                const key = parts(path).pop() || null, mine = [];
+                const r = {
+                    once: async () => snap(key, read(path)),
+                    set: async v => { write(path, v); notify(); },
+                    remove: async () => { write(path, null); notify(); },
+                    update: async u => { Object.entries(u).forEach(([p, v]) => write(path ? path + "/" + p : p, v)); notify(); },
+                    push: () => ({ key: newKey() }),
+                    orderByChild: () => r,
+                    on: (ev, cb) => { const s = { path, key, cb }; subs.add(s); mine.push(s); setTimeout(() => { if (subs.has(s)) cb(snap(key, read(path))); }, 0); },
+                    off: () => mine.forEach(s => subs.delete(s))
+                };
+                return r;
+            };
+            const fire = () => { persist(); listener && listener(current); };
+            const authErr = code => Object.assign(new Error(code), { code });
+            const auth = {
+                get currentUser() { return current; },
+                onAuthStateChanged(cb) { listener = cb; setTimeout(() => cb(current), 0); },
+                async signInWithEmailAndPassword(email, pass) {
+                    const a = accounts[email.toLowerCase()];
+                    if (!a || a.pass !== pass) throw authErr("auth/invalid-credential");
+                    current = a.user; fire(); return { user: current };
+                },
+                async createUserWithEmailAndPassword(email, pass) {
+                    const k = email.toLowerCase();
+                    if (!/^\S+@\S+\.\S+$/.test(email)) throw authErr("auth/invalid-email");
+                    if (pass.length < 6) throw authErr("auth/weak-password");
+                    if (accounts[k]) throw authErr("auth/email-already-in-use");
+                    const user = mkUser(k, "u_" + k.replace(/[^a-z0-9]/g, "_"), email);
+                    accounts[k] = { pass, user }; current = user; persist(); return { user };
+                },
+                async sendPasswordResetEmail() { },
+                async signOut() { current = null; fire(); }
+            };
+            const db = { ref };
+            return {
+                initializeApp() { }, auth: () => auth, database: Object.assign(() => db, { ServerValue: { TIMESTAMP: TSV } }),
+                _write: write, _read: read, _fresh: !saved
+            };
+        }
+
+        function demoPhoto(title, sub, hue, w) {
+            const h = Math.round(w * 0.75), c = document.createElement("canvas");
+            c.width = w; c.height = h;
+            const g = c.getContext("2d");
+            const gr = g.createLinearGradient(0, 0, w, h);
+            gr.addColorStop(0, `hsl(${hue} 55% 46%)`); gr.addColorStop(1, `hsl(${(hue + 40) % 360} 60% 26%)`);
+            g.fillStyle = gr; g.fillRect(0, 0, w, h);
+            g.fillStyle = "rgba(255,255,255,.13)"; g.beginPath(); g.arc(w * .8, h * .28, h * .2, 0, 7); g.fill();
+            g.fillStyle = "rgba(0,0,0,.24)";
+            let x = 0, seed = hue * 13 + title.length * 7;
+            while (x < w) {
+                seed = (seed * 9301 + 49297) % 233280; const bw = w * (.05 + .07 * seed / 233280);
+                seed = (seed * 9301 + 49297) % 233280; const bh = h * (.12 + .3 * seed / 233280);
+                g.fillRect(x, h - bh, bw, bh); x += bw + 2;
+            }
+            g.fillStyle = "#fff"; g.textAlign = "center";
+            g.font = `800 ${Math.round(w / 13)}px Inter, system-ui, sans-serif`; g.fillText(title, w / 2, h * .46, w * .92);
+            g.globalAlpha = .9; g.font = `600 ${Math.round(w / 28)}px Inter, system-ui, sans-serif`; g.fillText(sub, w / 2, h * .46 + w / 15, w * .92);
+            g.globalAlpha = .7; g.font = `700 ${Math.round(w / 40)}px Inter, system-ui, sans-serif`; g.fillText("SAMPLE PHOTO", w / 2, h * .88);
+            return c.toDataURL("image/jpeg", .72);
+        }
+
+        function seedDemo() {
+            const fb = firebase, w = fb._write, g = DEFAULT_GAME, env = `games/${g.id}/sandbox`;
+            const defaults = Object.fromEntries(g.stops.map(s => [s.id, s]));
+            if (fb._fresh) {
+                w(`gameMeta/${g.id}`, { ...g.meta, owner: "seed_owner", created: Date.now() - 86400000 });
+                const so = {}; g.stops.forEach((s, i) => { const { id, ...r } = s; so[id] = { ...r, order: i }; });
+                w(`gameStops/${g.id}`, so);
+                // [player, stop, caption, minutes ago]
+                const posts = [
+                    ["mapnerd", "parthenon", "Athena is 42 feet tall. I am not.", 300],
+                    ["mapnerd", "wwii", "Pushed the granite globe. It moved!", 250],
+                    ["mapnerd", "polk-tomb", "Paying respects to No. 11.", 220],
+                    ["mapnerd", "polk-death", "The house is gone. The marker stays.", 205],
+                    ["mapnerd", "cmhof", "Full diva. No regrets.", 150],
+                    ["honkytonk_hist", "ryman", "Sang on the steps. A tourist clapped.", 280],
+                    ["honkytonk_hist", "cmhof", "Diva pose, piano-key windows behind me.", 240],
+                    ["honkytonk_hist", "ped-bridge", "Best skyline view in town.", 190],
+                    ["honkytonk_hist", "nashborough", "Where Nashville started, more or less.", 170],
+                    ["polk_fan_11", "polk-tomb", "Pilgrimage complete.", 130],
+                    ["polk_fan_11", "polk-death", "Two Polk stops, 250 meters apart.", 110],
+                    ["ssed_dave", "sheraton", "Badge on, hunt on.", 400],
+                    ["ssed_dave", "fort-negley", "Cannon selfie, as assigned.", 90],
+                    ["ssed_dave", "ped-bridge", "Windy up here.", 45],
+                    ["civics_kate", "sheraton", "Day one check-in!", 380],
+                    ["civics_kate", "bna", "Airplane arms at baggage claim.", 360],
+                    ["civics_kate", "hermitage", "Scowling, as instructed.", 60]
+                ];
+                const now = Date.now();
+                posts.forEach(([u, loc, cap, mins], i) => {
+                    const id = "seed" + String(i).padStart(3, "0"), s = defaults[loc], who = "seed_" + u;
+                    const j1 = Math.sin(i * 12.9898) * 0.0005, j2 = Math.cos(i * 78.233) * 0.0006;
+                    w(`usernames/${u}`, who);
+                    w(`users/${who}`, { username: u, created: now - 86400000 });
+                    w(`${env}/posts/${id}`, { uid: who, username: u, locId: loc, caption: cap, lat: +(s.lat + j1).toFixed(6), lng: +(s.lng + j2).toFixed(6), acc: 8, ts: now - mins * 60000 });
+                    w(`${env}/claims/${who}/${loc}`, id);
+                });
+            }
+            // sample photos aren't stored between visits, so draw them each time
+            const posts = fb._read(`${env}/posts`) || {};
+            for (const [id, p] of Object.entries(posts)) {
+                if (!id.startsWith("seed")) continue;
+                const s = fb._read(`gameStops/${g.id}/${p.locId}`) || defaults[p.locId];
+                if (!s) continue;
+                const hue = (+id.slice(4) * 47) % 360, sub = String(s.name).replace(/ \(.*\)/, "");
+                w(`${env}/thumbs/${id}`, demoPhoto(s.task || "Sample", sub, hue, 400));
+                w(`${env}/photos/${id}`, demoPhoto(s.task || "Sample", sub, hue, 900));
+            }
+        }
+
+        function prepDemoForm() {
+            $("#demoNote").classList.remove("hidden");
+            $("#segUp").click();
+            $("#authUser").value = "demo_player";
+            $("#authEmail").value = "demo@example.com";
+            $("#authPass").value = "demo1234";
+        }
+
+        // ---------------- go ----------------
+        if (NOT_CONFIGURED) show("screen-setup");
+        else boot();
+    </script>
+
+</body>
+
+</html>
