@@ -1213,6 +1213,15 @@
             text-align: left
         }
 
+        .loc-btn {
+            background: #fff;
+            color: var(--ink);
+            border-radius: 10px;
+            padding: 7px 10px;
+            font: 700 12.5px Inter, system-ui, sans-serif;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, .2)
+        }
+
         .hdr-btn {
             flex: none;
             width: 38px;
@@ -3578,6 +3587,22 @@
         function editPinIcon() {
             return L.divIcon({ className: "", html: '<div class="stop-pin"><b>●</b></div>', iconSize: [34, 34], iconAnchor: [4, 34] });
         }
+        // Finds where you are: uses the game's GPS reading if it's fresh, otherwise asks the phone.
+        // With cachedOnly, it never asks (so no permission pop-up) and does nothing if nothing is known.
+        function locateMe(ok, fail, cachedOnly) {
+            const p = state.pos;
+            if (p && Date.now() - p.ts < 120000) return ok({ lat: p.lat, lng: p.lng });
+            if (state.sim) return ok({ lat: state.sim.lat, lng: state.sim.lng });   // demo or test location
+            if (cachedOnly) return;
+            if (!navigator.geolocation) return fail("This browser can't share your location. Search or tap the map instead.");
+            navigator.geolocation.getCurrentPosition(
+                q => ok({ lat: q.coords.latitude, lng: q.coords.longitude }),
+                e => fail(e.code === 1
+                    ? "Location is blocked for this site. Allow it in your browser settings, or search instead."
+                    : "Couldn't find your location. Search or tap the map instead."),
+                { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
+        }
+
         function openStopEditor(idx) {
             const d = state.draft, isNewStop = idx == null;
             const s = isNewStop ? { id: newId("s"), name: "", about: "", task: "", lat: null, lng: null } : { ...d.stops[idx] };
@@ -3588,7 +3613,7 @@
     <form id="stSearch" class="add-row"><input id="st_q" type="search" placeholder="Search for a place" aria-label="Search for a place"><button class="btn small teal" type="submit">Search</button></form>
     <div id="stResults"></div>
     <div id="stopMap"></div>
-    <div class="coord-row"><span id="stCoords" class="hint" style="margin:0"></span><button type="button" class="linkbtn" id="stHere">Use my location</button></div>
+    <div class="coord-row"><span id="stCoords" class="hint" style="margin:0"></span><button type="button" class="linkbtn" id="stHere">Put the pin where I am</button></div>
     <label class="field"><span>Stop name</span><input id="st_name" maxlength="80" value="${esc(s.name)}"></label>
     <label class="field"><span>Description</span><input id="st_about" maxlength="140" value="${esc(s.about || "")}" placeholder="One line about the place"></label>
     <label class="field"><span>Photo challenge</span><input id="st_task" maxlength="80" value="${esc(s.task || "")}" placeholder="e.g. Selfie with the statue"></label>
@@ -3616,8 +3641,11 @@
                     : homeNow ? "Leave these blank to use the straight-line distance and the hunt's points per mile."
                         : "Once the hunt has a home base, distances and points fill in automatically.";
             };
-            const start = s.lat != null ? [s.lat, s.lng] : home ? [home.lat, home.lng] : d.stops[0] ? [d.stops[0].lat, d.stops[0].lng] : [36.1627, -86.7816];
-            const sm = L.map("stopMap", { zoomControl: true }).setView(start, s.lat != null ? 17 : 13);
+            // Open the map on this stop, the home base or another stop. For a brand-new hunt
+            // with no stops yet, open on the whole country and then move to where you are.
+            const ref = s.lat != null ? [s.lat, s.lng] : home ? [home.lat, home.lng] : d.stops[0] ? [d.stops[0].lat, d.stops[0].lng] : null;
+            const sm = L.map("stopMap", { zoomControl: true });
+            if (ref) sm.setView(ref, s.lat != null ? 17 : 15); else sm.setView([39.5, -98.35], 4);
             addBaseLayers(sm, $("#stopMap"));
             // the hunt's other stops, for reference
             d.stops.forEach(o => {
@@ -3625,8 +3653,14 @@
                 L.circleMarker([o.lat, o.lng], { radius: 6, color: "#fff", weight: 2, fillColor: o.id === d.meta.homeId ? "#1d2235" : "#e2553b", fillOpacity: 1, interactive: false })
                     .bindTooltip(o.name, { permanent: true, direction: "right", offset: [8, 0], className: "stop-label" }).addTo(sm);
             });
-            let marker = null;
+            let marker = null, meDot = null, touched = false, alive = true;
+            const showMe = p => {
+                if (!alive) return;
+                if (!meDot) meDot = L.marker([p.lat, p.lng], { icon: L.divIcon({ className: "", html: '<div class="me-dot"></div>', iconSize: [18, 18], iconAnchor: [9, 9] }), interactive: false, zIndexOffset: -100 }).addTo(sm);
+                else meDot.setLatLng([p.lat, p.lng]);
+            };
             const place = (lat, lng, zoom) => {
+                touched = true;
                 s.lat = +(+lat).toFixed(6); s.lng = +(+lng).toFixed(6);
                 if (!marker) {
                     marker = L.marker([s.lat, s.lng], { draggable: true, icon: editPinIcon() }).addTo(sm);
@@ -3637,9 +3671,36 @@
             };
             if (s.lat != null) place(s.lat, s.lng);
             sm.on("click", e => place(e.latlng.lat, e.latlng.lng));
+            sm.on("dragstart", () => { touched = true; });
             setTimeout(() => sm.invalidateSize(), 80);
-            sheetCleanup = () => sm.remove();
+            sheetCleanup = () => { alive = false; sm.remove(); };
             updAuto();
+            // "My location" button on the map: moves the map to you without moving the pin
+            const LocCtl = L.Control.extend({
+                options: { position: "topright" }, onAdd() {
+                    const b = L.DomUtil.create("button", "loc-btn");
+                    b.type = "button"; b.textContent = "◎ My location"; b.setAttribute("aria-label", "Show my location on the map");
+                    L.DomEvent.disableClickPropagation(b);
+                    b.onclick = () => {
+                        $("#stCoords").textContent = "Finding your location…";
+                        locateMe(p => { showMe(p); touched = true; sm.setView([p.lat, p.lng], 17); updAuto(); if (s.lat == null) $("#stCoords").textContent = "Showing where you are. Tap the map to drop the pin."; },
+                                 msg => { $("#stCoords").textContent = msg; });
+                    };
+                    return b;
+                }
+            });
+            new LocCtl().addTo(sm);
+            if (!ref) {
+                // new hunt: go to where you are, unless you've already searched or tapped the map
+                $("#stCoords").textContent = "Finding your location…";
+                locateMe(p => {
+                    if (!alive) return;
+                    showMe(p);
+                    if (!touched) { sm.setView([p.lat, p.lng], 16); $("#stCoords").textContent = "Showing where you are. Tap the map to drop the pin."; }
+                }, () => { if (alive && s.lat == null) $("#stCoords").textContent = "Search for a place or tap the map to drop the pin."; });
+            } else {
+                locateMe(showMe, () => { }, true);   // show the blue dot only if your location is already known
+            }
 
             $("#st_home").onchange = updAuto;
             $("#st_miles").oninput = updAuto;
@@ -3667,10 +3728,8 @@
                 }
             };
             $("#stHere").onclick = () => {
-                const fallback = () => { if (state.sim) place(state.sim.lat, state.sim.lng, 17); else $("#stCoords").textContent = "Couldn't get your location. Tap the map instead."; };
-                if (!navigator.geolocation) return fallback();
                 $("#stCoords").textContent = "Finding your location…";
-                navigator.geolocation.getCurrentPosition(p => place(p.coords.latitude, p.coords.longitude, 17), fallback, { enableHighAccuracy: true, timeout: 15000 });
+                locateMe(p => { showMe(p); place(p.lat, p.lng, 17); }, msg => { $("#stCoords").textContent = msg; });
             };
             $("#stCancel").onclick = closeSheet;
             $("#stSave").onclick = () => {
