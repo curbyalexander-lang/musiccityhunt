@@ -2614,7 +2614,7 @@
         };
         const thumbCache = new Map();
         let pending = null, sheetCleanup = null, signingUp = false, signUpMode = false;
-        let gameRefs = [], orgRef = null, watchId = null;
+        let gameRefs = [], orgRef = null, metaRef = null, watchId = null;
         let map = null, stopLayer = null, postLayer = null, meMarker = null, meAcc = null, mapNeedsFit = true;
 
         const uid = () => state.user && state.user.uid;
@@ -2640,13 +2640,24 @@
             wireAuthScreen(); wireMain(); wireOrg();
             if (DEMO) prepDemoForm();
             renderAuthBrand();
-            db.ref("gameMeta").on("value", onGamesMeta, err => toast("Couldn't load hunts: " + err.message, 5000));
+            metaRef = listen(() => db.ref("gameMeta"), onGamesMeta, "hunts");
             auth.onAuthStateChanged(async user => {
                 if (signingUp) return;   // signUp() finishes the flow itself
                 signedOut();
                 state.user = user;
                 if (!user) { show("screen-auth"); return; }
-                const snap = await db.ref("users/" + user.uid).once("value");
+                // Right after signing in, the database can take a moment to recognize the
+                // new sign-in, so wait for it and retry the first read if it's refused.
+                let snap;
+                try { if (user.getIdToken) await user.getIdToken(); } catch { }
+                try {
+                    snap = await readWithRetry("users/" + user.uid);
+                } catch (err) {
+                    show("screen-auth");
+                    $("#authErr").textContent = "You're signed in, but your profile didn't load. Check your connection and tap Sign in again.";
+                    return;
+                }
+                if (state.user !== user) return;   // signed out or switched while waiting
                 state.profile = snap.val();
                 if (!state.profile || !state.profile.username) { show("screen-username"); return; }
                 afterLogin();
@@ -2659,20 +2670,47 @@
             state.organizers = {}; state.isOwner = false; state.isOrg = false;
         }
 
+        // A one-time read that retries a few times if the database refuses it at first.
+        async function readWithRetry(path, tries = 6) {
+            for (let i = 0; ; i++) {
+                try { return await db.ref(path).once("value"); }
+                catch (err) {
+                    if (i >= tries - 1) throw err;
+                    await new Promise(r => setTimeout(r, 400 * (i + 1)));
+                }
+            }
+        }
+        // A live listener that re-attaches a few times if the database refuses it at first.
+        // Returns an object with off(), like a Firebase reference.
+        function listen(makeRef, cb, label) {
+            let ref = null, stopped = false, tries = 0;
+            const attach = () => {
+                ref = makeRef();
+                ref.on("value", cb, err => {
+                    if (stopped) return;
+                    if (++tries <= 5) setTimeout(() => { if (!stopped) attach(); }, 500 * tries);
+                    else if (label) toast("Couldn't load " + label + ": " + err.message, 5000);
+                });
+            };
+            attach();
+            return { off() { stopped = true; if (ref) ref.off(); } };
+        }
+
         function afterLogin() {
             updateRole();
             const key = emailKey(state.user.email);
             // The owner reads the whole organizer list; everyone else can only check their own entry.
             const whole = state.isOwner;
-            orgRef = whole ? db.ref("organizers") : db.ref("organizers/" + key);
-            orgRef.on("value", s => {
+            orgRef = listen(() => whole ? db.ref("organizers") : db.ref("organizers/" + key), s => {
                 const v = s.val();
                 state.organizers = whole ? (v || {}) : (v ? { [key]: v } : {});
                 updateRole();
                 if (screen === "screen-picker") renderPicker();
                 if (screen === "screen-org") renderOrg();
                 if (screen === "screen-main") applyGameHeader();
-            }, () => { });
+            });
+            // if the hunt list hasn't loaded yet (for example it was refused before sign-in), ask again
+            if (!state.metaLoaded) { if (metaRef) metaRef.off(); metaRef = listen(() => db.ref("gameMeta"), onGamesMeta, "hunts"); }
             if (!DEMO) startGps();
             routeAfterLogin();
         }
@@ -2747,7 +2785,7 @@
                 $("#fixErr").textContent = "";
                 try {
                     await claimUsername($("#fixUser").value.trim());
-                    state.profile = (await db.ref("users/" + state.user.uid).once("value")).val();
+                    state.profile = (await readWithRetry("users/" + state.user.uid)).val();
                     afterLogin();
                 } catch (err) { $("#fixErr").textContent = err.message || String(err); }
             };
@@ -2827,8 +2865,7 @@
             state.meta = state.gamesMeta[id]; state.rawStops = {}; state.posts = []; state.confirmRm = null;
             if (DEMO) state.sim = null;
             restock(); recompute(); mapNeedsFit = true;
-            const sref = db.ref("gameStops/" + id);
-            sref.on("value", s => {
+            const sref = listen(() => db.ref("gameStops/" + id), s => {
                 state.rawStops = s.val() || {};
                 restock(); recompute();
                 if (DEMO && !state.sim && state.stops.length) {
@@ -2837,15 +2874,14 @@
                     updateMeMarker();
                 }
                 render();
-            }, err => toast("Couldn't load stops: " + err.message, 5000));
-            const pref = db.ref(envPath(id) + "/posts").orderByChild("ts");
-            pref.on("value", snap => {
+            }, "stops");
+            const pref = listen(() => db.ref(envPath(id) + "/posts").orderByChild("ts"), snap => {
                 const arr = [];
                 snap.forEach(c => { const v = c.val(); v.id = c.key; arr.push(v); });
                 arr.sort((a, b) => (b.ts || 0) - (a.ts || 0));
                 state.posts = arr;
                 recompute(); render();
-            }, err => toast("Couldn't load posts: " + err.message, 5000));
+            }, "posts");
             gameRefs.push(sref, pref);
             show("screen-main");
             setTab("hunt");
