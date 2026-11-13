@@ -36,6 +36,10 @@
 
 <body>
     <title>Photo Hunt</title>
+    <meta name="description" content="Live map, photos and leaderboard from a GPS photo scavenger hunt.">
+    <meta property="og:title" content="Photo Hunt">
+    <meta property="og:description" content="Live map, photos and leaderboard from a GPS photo scavenger hunt.">
+    <meta property="og:type" content="website">
     <style>
         /* required styles */
 
@@ -1213,6 +1217,17 @@
             text-align: left
         }
 
+        .banner.watch {
+            background: var(--teal);
+            color: #fff
+        }
+
+        .banner.watch a {
+            color: #fff;
+            text-decoration: underline;
+            margin-left: 4px
+        }
+
         .loc-btn {
             background: #fff;
             color: var(--ink);
@@ -2367,8 +2382,12 @@
             <button class="hdr-btn hidden" id="orgBtn" type="button" aria-label="Organizer tools" title="Organizer tools">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
             </button>
+            <button class="hdr-btn hidden" id="shareBtn" type="button" aria-label="Share the public map and feed" title="Share the public map and feed">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>
+            </button>
             <button class="pill" id="scorePill"><b id="pillPts">0</b> pts<span id="pillRank"></span></button>
         </header>
+        <div id="watchBanner" class="banner watch hidden">Live map and photos. <a id="joinLink" href="#">Join the hunt ›</a></div>
         <div id="testBanner" class="banner hidden">TEST MODE: tap the map to fake your location. These posts are kept
             separate from the real game.</div>
         <div id="closedBanner" class="banner closed hidden">This hunt is closed. You can look around, but new posts are
@@ -2531,6 +2550,7 @@
         const DEMO = DEMO_MODE || params.has("demo") || location.protocol === "file:";
         const TEST = params.has("test") || DEMO;
         const URL_GAME = params.get("game");
+        const WATCH    = params.get("watch");   // public view: ?watch=hunt-id, no sign-in needed
         const NOT_CONFIGURED = !DEMO && FIREBASE_CONFIG.apiKey.startsWith("PASTE");
         const LAST_KEY = "photohunt-last-hunt";
 
@@ -2557,6 +2577,7 @@
         const nameHTML = (n1, n2) => esc(n1 || "") + (n2 ? " <span>" + esc(n2) + "</span>" : "");
         const nameText = m => [m && m.name1, m && m.name2].filter(Boolean).join(" ");
         const gameLink = id => location.href.split(/[?#]/)[0] + "?game=" + encodeURIComponent(id);
+        const watchLink = id => location.href.split(/[?#]/)[0] + "?watch=" + encodeURIComponent(id);
         const TS = () => firebase.database.ServerValue.TIMESTAMP;
         function clean(o) {
             const r = {};
@@ -2650,6 +2671,7 @@
             if (DEMO) prepDemoForm();
             renderAuthBrand();
             metaRef = listen(() => db.ref("gameMeta"), onGamesMeta, "hunts");
+            if (WATCH) { state.spectator = true; return; }   // public map and feed: no sign-in
             auth.onAuthStateChanged(async user => {
                 if (signingUp) return;   // signUp() finishes the flow itself
                 signedOut();
@@ -2736,6 +2758,7 @@
         function onGamesMeta(snap) {
             state.gamesMeta = snap.val() || {};
             state.metaLoaded = true;
+            if (state.spectator) { routeSpectator(); return; }
             renderAuthBrand();
             if (state.pendingRoute) { state.pendingRoute = false; routeAfterLogin(); return; }
             if (state.gameId) {
@@ -2893,7 +2916,7 @@
             }, "posts");
             gameRefs.push(sref, pref);
             show("screen-main");
-            setTab("hunt");
+            setTab(state.spectator ? "map" : "hunt");
         }
         function restock() {
             state.stops = buildStops(state.meta || {}, state.rawStops);
@@ -2907,7 +2930,41 @@
             $("#testBanner").classList.toggle("hidden", !TEST);
             if (DEMO) $("#testBanner").textContent = "DEMO: nothing is shared with anyone. Tap the map or use Jump here to move around.";
             $("#closedBanner").classList.toggle("hidden", isOpen());
-            $("#orgBtn").classList.toggle("hidden", !state.isOrg);
+            const spec = !!state.spectator;
+            $("#orgBtn").classList.toggle("hidden", !state.isOrg || spec);
+            $("#homeBtn").classList.toggle("hidden", spec);
+            $("#scorePill").classList.toggle("hidden", spec);
+            $("#gpsBar").classList.toggle("hidden", spec);
+            $("#watchBanner").classList.toggle("hidden", !spec);
+            $('.tabs [data-tab="hunt"]').classList.toggle("hidden", spec);
+            $("#shareBtn").classList.toggle("hidden", !m.public);
+            if (spec) $("#joinLink").href = gameLink(state.gameId);
+            if (spec) $("#closedBanner").classList.add("hidden");
+        }
+
+        // ---------------- public map and feed ----------------
+        function routeSpectator() {
+            const m = state.gamesMeta[WATCH];
+            if (!m || !m.public) {
+                closeGame();
+                show("screen-picker");
+                $$(".app-name").forEach(el => el.innerHTML = m ? nameHTML(m.name1, m.name2) : nameHTML(APP_TITLE[0], APP_TITLE[1]));
+                $("#screen-picker .tag").textContent = m ? "This hunt doesn't have a public map and feed." : "This link doesn't match a hunt.";
+                $("#pickList").innerHTML = m ? `<a class="btn" href="${esc(gameLink(WATCH))}">Sign in to play</a>` : "";
+                $("#pickOrg").classList.add("hidden"); $("#pickOut").classList.add("hidden");
+                return;
+            }
+            if (state.gameId !== WATCH) openGame(WATCH);
+            else { state.meta = m; restock(); recompute(); render(); }
+        }
+        async function shareHunt(id = state.gameId) {
+            const m = state.gamesMeta[id] || {}, url = watchLink(id), title = nameText(m) || APP_TITLE.join(" ");
+            if (navigator.share) {
+                try { await navigator.share({ title, text: `Follow ${title} live: the map, photos and leaderboard.`, url }); return; }
+                catch (e) { if (e && e.name === "AbortError") return; }
+            }
+            if (await copyText(url)) toast("Public link copied. Paste it into a post, text or email.", 3500);
+            else toast(url, 8000);
         }
 
         function wireMain() {
@@ -2915,6 +2972,7 @@
             $("#scorePill").onclick = openAccount;
             $("#homeBtn").onclick = () => { closeSheet(); showPicker(); };
             $("#orgBtn").onclick = () => { closeSheet(); openOrg(); };
+            $("#shareBtn").onclick = () => shareHunt();
             $("#recenter").onclick = () => { const p = currentPos(); if (p && map) map.setView([p.lat, p.lng], 16); else toast("No location yet"); };
             $("#showAll").onclick = () => { if (map) { map.closePopup(); fitAll(); } };
             $("#sheet").onclick = e => { if (e.target.id === "sheet") closeSheet(); };
@@ -2951,6 +3009,7 @@
             return best;
         }
         function renderGps() {
+            if (state.spectator) { $("#gpsBar").classList.add("hidden"); return; }   // public viewers have no GPS
             const bar = $("#gpsBar"), txt = $("#gpsText");
             bar.className = "gps";
             if (state.sim) { bar.classList.add("warn"); txt.textContent = "Using a test location (tap the map to move it)."; return; }
@@ -3236,6 +3295,7 @@
             $("#sheetPanel").innerHTML = `<div class="grab"></div>
     <h2>${esc(s.name)}</h2>
     <div class="hint" style="font-size:14px">${s.task ? `Challenge: <b style="color:var(--coral-dk)">${esc(s.task)}</b> · ` : ""}worth ${s.points} pts</div>
+    ${state.meta && state.meta.public ? `<div class="hint" style="background:var(--gold-bg);color:#7a5210;border-radius:10px;padding:8px 10px;margin-top:10px">This hunt has a public page. Anyone with its link can see your photo, caption and username.</div>` : ""}
     <input type="file" id="photoIn" accept="image/*" class="hidden">
     <label class="pick" id="pickBox" for="photoIn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg><span>Take or choose a photo</span></label>
     <img id="prev" class="preview hidden" alt="">
@@ -3363,11 +3423,13 @@
       <div class="rc-top"><div class="rc-name">${nameHTML(g.name1, g.name2)}</div>
         <span class="chip ${g.status === "closed" ? "closed" : "open"}">${g.status === "closed" ? "Closed" : "Open"}</span></div>
       <div class="rc-link" id="link-${esc(g.id)}">${esc(gameLink(g.id))}</div>
+      ${g.public ? `<div class="rc-link" style="margin-top:-8px"><b>Public page:</b> ${esc(watchLink(g.id))}</div>` : ""}
       <div class="btn-row">
         <button class="btn small" data-edit="${esc(g.id)}">Edit</button>
         <button class="btn small ghost" data-copy="${esc(g.id)}">Copy link</button>
         <button class="btn small ghost" data-toggle="${esc(g.id)}">${g.status === "closed" ? "Reopen" : "Close"}</button>
         <button class="btn small ghost" data-play="${esc(g.id)}">Play</button>
+        ${g.public ? `<button class="btn small teal" data-share="${esc(g.id)}">Share public page</button>` : ""}
       </div></div>`).join("")
                 : `<div class="empty small">No hunts yet. Tap <b>New hunt</b> to make one.</div>`;
             if (state.isOwner) {
@@ -3387,6 +3449,7 @@
             if ($("#orgImport")) $("#orgImport").onclick = importDefault;
             $$("#orgBody [data-edit]").forEach(b => b.onclick = () => openEditor(b.dataset.edit));
             $$("#orgBody [data-play]").forEach(b => b.onclick = () => openGame(b.dataset.play));
+            $$("#orgBody [data-share]").forEach(b => b.onclick = () => shareHunt(b.dataset.share));
             $$("#orgBody [data-copy]").forEach(b => b.onclick = async () => {
                 const link = gameLink(b.dataset.copy);
                 if (await copyText(link)) { toast("Link copied"); return; }
@@ -3465,6 +3528,8 @@
         <div class="hint">Used in phrases like "7.0 mi from the hotel".</div></label>
       <label class="field" style="margin-bottom:4px"><span>Status</span><select id="ed_status">
         <option value="open">Open: players can post</option><option value="closed">Closed: players can look but not post</option></select></label>
+      <label class="check" style="margin:14px 0 0"><input type="checkbox" id="ed_public" ${m.public ? "checked" : ""}>
+        <span><b>Public map and feed.</b> Anyone with the public link can see the map, photos, captions, usernames and leaderboard without signing in. Players are told when they post.</span></label>
     </div>
     <div class="sect-row"><div class="sect">Stops</div><button class="btn small teal" id="ed_add">+ Add stop</button></div>
     <div id="edStops"></div>
@@ -3487,6 +3552,7 @@
             $("#ed_ppm").oninput = e => { m.ppm = parseFloat(e.target.value); renderEditorStops(); };
             $("#ed_home").oninput = e => { m.homeLabel = e.target.value; };
             $("#ed_status").onchange = e => { m.status = e.target.value; };
+            $("#ed_public").onchange = e => { m.public = e.target.checked; };
             $("#ed_add").onclick = () => openStopEditor(null);
             updateEditorPreview(); renderEditorStops(); renderDanger();
         }
@@ -3564,7 +3630,7 @@
             const meta = clean({
                 name1: m.name1.trim(), name2: (m.name2 || "").trim(), tagline: (m.tagline || "").trim(),
                 homeLabel: (m.homeLabel || "").trim() || "home base", geofence: Math.round(geo), ppm,
-                status: m.status === "closed" ? "closed" : "open", homeId,
+                status: m.status === "closed" ? "closed" : "open", homeId, public: !!m.public,
                 owner: d.isNew ? uid() : (old && old.owner) || uid(),
                 created: d.isNew ? TS() : (old && old.created) || TS(), updated: TS()
             });
