@@ -2382,7 +2382,7 @@
             <button class="hdr-btn hidden" id="orgBtn" type="button" aria-label="Organizer tools" title="Organizer tools">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
             </button>
-            <button class="hdr-btn hidden" id="shareBtn" type="button" aria-label="Share the public map and feed" title="Share the public map and feed">
+            <button class="hdr-btn hidden" id="shareBtn" type="button" aria-label="Copy the public link" title="Copy the public link">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>
             </button>
             <button class="pill" id="scorePill"><b id="pillPts">0</b> pts<span id="pillRank"></span></button>
@@ -2474,16 +2474,30 @@
 
     <script>
         // Shows a readable message if the app's code fails to start (for example after an edit).
+        // Errors from scripts on other sites (the map and Firebase libraries, browser extensions,
+        // or the browser built into apps like Gmail or Facebook) arrive as a bare "Script error."
+        // with no details. The app normally keeps working, so those are only logged, not shown.
         window.addEventListener("error", function (e) {
             if (!e.message) return;
+            var page = location.href.split(/[?#]/)[0];
+            var fromOtherScript = /^Script error\.?$/i.test(e.message) ||
+                (e.filename && e.filename.split(/[?#]/)[0] !== page);
+            if (fromOtherScript) { console.warn("Ignored an error from an outside script:", e.message, e.filename || ""); return; }
             var d = document.getElementById("bootErr");
             if (!d) {
                 d = document.createElement("div"); d.id = "bootErr";
-                d.style.cssText = "position:fixed;left:12px;right:12px;bottom:12px;z-index:3000;background:#fde8e3;color:#7a1f10;border:1px solid #e2553b;border-radius:12px;padding:12px 14px;font:14px/1.45 system-ui,sans-serif";
+                d.setAttribute("role", "alert");
+                d.style.cssText = "position:fixed;left:12px;right:12px;bottom:12px;z-index:3000;background:#fde8e3;color:#7a1f10;border:1px solid #e2553b;border-radius:12px;padding:12px 40px 12px 14px;font:14px/1.45 system-ui,sans-serif";
+                var x = document.createElement("button");
+                x.type = "button"; x.textContent = "×"; x.setAttribute("aria-label", "Close this message");
+                x.style.cssText = "position:absolute;top:6px;right:8px;width:30px;height:30px;border:0;background:none;color:#7a1f10;font-size:22px;line-height:1;cursor:pointer";
+                x.onclick = function () { d.remove(); };
+                var t = document.createElement("span"); t.id = "bootErrText";
+                d.appendChild(t); d.appendChild(x);
                 document.body.appendChild(d);
             }
-            d.textContent = "The app hit a problem: " + e.message + (e.lineno ? " (line " + e.lineno + ")" : "") +
-                ". If you edited the settings, check that every line still has matching quotes and ends with a semicolon.";
+            document.getElementById("bootErrText").textContent = "Something went wrong in the app: " + e.message +
+                (e.lineno ? " (line " + e.lineno + ")" : "") + ". If things stop working, reload the page.";
         });
     </script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -2611,7 +2625,15 @@
             clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove("show"), ms);
         }
         async function copyText(text) {
-            try { await navigator.clipboard.writeText(text); return true; } catch { return false; }
+            try { await navigator.clipboard.writeText(text); return true; } catch { }
+            // older browsers and some in-app browsers: copy through a hidden text box
+            try {
+                const ta = document.createElement("textarea");
+                ta.value = text; ta.setAttribute("readonly", "");
+                ta.style.cssText = "position:fixed;top:0;left:0;opacity:0;";
+                document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, text.length);
+                const ok = document.execCommand("copy"); ta.remove(); return ok;
+            } catch { return false; }
         }
         const dirUrl = s => `https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}`;
 
@@ -2957,14 +2979,11 @@
             if (state.gameId !== WATCH) openGame(WATCH);
             else { state.meta = m; restock(); recompute(); render(); }
         }
+        // Copies the hunt's public link so it can be pasted into a post, text or email.
         async function shareHunt(id = state.gameId) {
-            const m = state.gamesMeta[id] || {}, url = watchLink(id), title = nameText(m) || APP_TITLE.join(" ");
-            if (navigator.share) {
-                try { await navigator.share({ title, text: `Follow ${title} live: the map, photos and leaderboard.`, url }); return; }
-                catch (e) { if (e && e.name === "AbortError") return; }
-            }
-            if (await copyText(url)) toast("Public link copied. Paste it into a post, text or email.", 3500);
-            else toast(url, 8000);
+            const url = watchLink(id);
+            if (await copyText(url)) toast("Link Copied", 2000);
+            else toast("Couldn't copy automatically. Here's the link: " + url, 8000);
         }
 
         function wireMain() {
@@ -3111,15 +3130,20 @@
             if (!posts.length) { $("#tab-feed").innerHTML = `<div class="wrap empty">No posts yet.<br>Be the first one out the door!</div>`; return; }
             $("#tab-feed").innerHTML = `<div class="wrap">${posts.map(p => {
                 const s = state.stopById[p.locId];
+                const mine = !!uid() && p.uid === uid();
                 return `<div class="post">
       <div class="hd"><div class="av" style="background:${userColor(p.username)}">${esc((p.username || "?")[0].toUpperCase())}</div>
         <div class="who"><div class="nm">${esc(p.username)}</div><div class="sub">${esc(s.name)} · ${ago(p.ts)}</div></div>
         <div class="plus">+${s.points}</div>
-        ${mod ? `<button class="linkbtn danger-link rm" data-rm="${esc(p.id)}">Remove</button>` : ""}</div>
+        ${mine ? `<button class="linkbtn danger-link rm" data-rm="${esc(p.id)}">Delete</button>`
+              : mod ? `<button class="linkbtn danger-link rm" data-rm="${esc(p.id)}">Remove</button>` : ""}</div>
       <div class="ph" data-thumb="${esc(p.id)}"></div>
       ${p.caption ? `<div class="cap">${esc(p.caption)}</div>` : ""}
-      ${state.confirmRm === p.id ? `<div class="confirm"><span>Remove this post for everyone? The player loses its points.</span>
-        <button class="btn small danger" data-rmyes="${esc(p.id)}">Remove</button><button class="btn small ghost" data-rmno>Keep</button></div>` : ""}
+      ${state.confirmRm === p.id ? (mine
+          ? `<div class="confirm"><span>Delete your post? You'll lose its ${s.points} points, and you can post at this stop again.</span>
+        <button class="btn small danger" data-rmyes="${esc(p.id)}">Delete</button><button class="btn small ghost" data-rmno>Keep</button></div>`
+          : `<div class="confirm"><span>Remove this post for everyone? The player loses its points.</span>
+        <button class="btn small danger" data-rmyes="${esc(p.id)}">Remove</button><button class="btn small ghost" data-rmno>Keep</button></div>`) : ""}
     </div>`;
             }).join("")}</div>`;
             $$("#tab-feed [data-thumb]").forEach(el => {
@@ -3135,8 +3159,13 @@
             const e = envPath(), u = {};
             u[`${e}/posts/${p.id}`] = null; u[`${e}/thumbs/${p.id}`] = null; u[`${e}/photos/${p.id}`] = null;
             u[`${e}/claims/${p.uid}/${p.locId}`] = null;
-            try { await db.ref().update(u); state.confirmRm = null; toast("Post removed"); }
-            catch (err) { toast("Couldn't remove it: " + err.message, 4000); }
+            const mine = p.uid === uid();
+            try { await db.ref().update(u); state.confirmRm = null; thumbCache.delete(state.gameId + "/" + p.id); toast(mine ? "Post deleted" : "Post removed"); }
+            catch (err) {
+                toast(String(err.message || err).toLowerCase().includes("permission")
+                    ? "Firebase didn't allow that. The latest database.rules.json may not be published yet."
+                    : "Couldn't delete it: " + err.message, 5000);
+            }
         }
 
         function renderRanks() {
@@ -3429,7 +3458,7 @@
         <button class="btn small ghost" data-copy="${esc(g.id)}">Copy link</button>
         <button class="btn small ghost" data-toggle="${esc(g.id)}">${g.status === "closed" ? "Reopen" : "Close"}</button>
         <button class="btn small ghost" data-play="${esc(g.id)}">Play</button>
-        ${g.public ? `<button class="btn small teal" data-share="${esc(g.id)}">Share public page</button>` : ""}
+        ${g.public ? `<button class="btn small teal" data-share="${esc(g.id)}">Copy public link</button>` : ""}
       </div></div>`).join("")
                 : `<div class="empty small">No hunts yet. Tap <b>New hunt</b> to make one.</div>`;
             if (state.isOwner) {
