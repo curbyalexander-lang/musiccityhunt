@@ -3570,6 +3570,7 @@
       ${g.public ? `<div class="rc-link" style="margin-top:-8px"><b>Public page:</b> ${esc(watchLink(g.id))}</div>` : ""}
       <div class="btn-row">
         <button class="btn small" data-edit="${esc(g.id)}">Edit</button>
+        <button class="btn small ghost" data-dup="${esc(g.id)}">Duplicate</button>
         <button class="btn small ghost" data-copy="${esc(g.id)}">Copy link</button>
         <button class="btn small ghost" data-toggle="${esc(g.id)}">${g.status === "closed" ? "Reopen" : "Close"}</button>
         <button class="btn small ghost" data-play="${esc(g.id)}">Play</button>
@@ -3592,6 +3593,7 @@
             $("#orgNew").onclick = () => openEditor(null);
             if ($("#orgImport")) $("#orgImport").onclick = importDefault;
             $$("#orgBody [data-edit]").forEach(b => b.onclick = () => openEditor(b.dataset.edit));
+            $$("#orgBody [data-dup]").forEach(b => b.onclick = () => openEditor(b.dataset.dup, true));
             $$("#orgBody [data-play]").forEach(b => b.onclick = () => openGame(b.dataset.play));
             $$("#orgBody [data-share]").forEach(b => b.onclick = () => shareHunt(b.dataset.share));
             $$("#orgBody [data-copy]").forEach(b => b.onclick = async () => {
@@ -3631,9 +3633,22 @@
         }
 
         // ---------------- hunt editor ----------------
-        async function openEditor(id) {
+        // A link name not used by any hunt yet: "nashville-2027" -> "nashville-2027-2", "-3", ...
+        function freeLinkName(base) {
+            const root = slugify(base).replace(/-\d{1,2}$/, "").slice(0, 36) || "hunt";   // drop an earlier copy number, keep years like 2027
+            for (let n = 2; ; n++) { const id = `${root}-${n}`; if (!state.gamesMeta[id]) return id; }
+        }
+
+        async function openEditor(id, duplicate) {
             let d;
-            if (id) {
+            if (id && duplicate) {
+                // Copy of a hunt: same stops and settings, new link, no players or posts
+                const m = state.gamesMeta[id]; if (!m) return;
+                const raw = (await readWithRetry("gameStops/" + id)).val() || {};
+                const stops = Object.entries(raw).map(([sid, s]) => ({ ...s, id: sid })).sort((a, b) => num(a.order, 0) - num(b.order, 0));
+                const { owner, created, updated, ...settings } = m;
+                d = { isNew: true, duplicateOf: id, id: freeLinkName(id), idTouched: false, meta: { ...settings, status: "open" }, stops };
+            } else if (id) {
                 const m = state.gamesMeta[id]; if (!m) return;
                 const raw = (await db.ref("gameStops/" + id).once("value")).val() || {};
                 const stops = Object.entries(raw).map(([sid, s]) => ({ ...s, id: sid })).sort((a, b) => num(a.order, 0) - num(b.order, 0));
@@ -3651,9 +3666,10 @@
         }
         function renderEditor() {
             const d = state.draft, m = d.meta;
-            $("#editTitle").textContent = d.isNew ? "New hunt" : "Edit hunt";
+            $("#editTitle").textContent = d.duplicateOf ? "Copy of hunt" : d.isNew ? "New hunt" : "Edit hunt";
             $("#editErr").textContent = "";
             $("#editBody").innerHTML = `
+    ${d.duplicateOf ? `<div class="card soft" style="margin-bottom:14px"><p style="margin:0">This copy of <b>${nameHTML(state.gamesMeta[d.duplicateOf] ? state.gamesMeta[d.duplicateOf].name1 : "", state.gamesMeta[d.duplicateOf] ? state.gamesMeta[d.duplicateOf].name2 : "")}</b> has the same ${d.stops.length} stops and settings, with no players, posts or photos. It gets its own link and leaderboard. Change anything you like, then tap <b>Save hunt</b>. The original isn't changed.</p></div>` : ""}
     <div class="logo preview-name" id="edPreview"></div>
     <div class="card">
       <div class="field-row">
@@ -3680,7 +3696,11 @@
     ${d.isNew ? "" : `<div class="danger-zone" id="edDanger"></div>`}`;
             $("#ed_status").value = m.status === "closed" ? "closed" : "open";
             const syncId = () => {
-                if (d.isNew && !d.idTouched) { d.id = slugify([m.name1, m.name2].filter(Boolean).join(" ")); $("#ed_id").value = d.id; }
+                if (d.isNew && !d.idTouched) {
+                    let s = slugify([m.name1, m.name2].filter(Boolean).join(" "));
+                    if (s && state.gamesMeta[s]) s = freeLinkName(s);   // that link is taken: suggest the next free one
+                    d.id = s; $("#ed_id").value = d.id;
+                }
                 updateEditorPreview();
             };
             $("#ed_name1").oninput = e => { m.name1 = e.target.value; syncId(); };
@@ -3783,7 +3803,7 @@
             btn.disabled = true; btn.textContent = "Saving…";
             try {
                 await db.ref().update({ ["gameMeta/" + id]: meta, ["gameStops/" + id]: stops });
-                if (homeId !== m.homeId) toast(`Saved. ${d.stops[0].name} is the home base.`, 3500); else toast("Hunt saved");
+                if (homeId !== m.homeId) toast(`Saved. ${d.stops[0].name} is the home base.`, 3500); else toast(d.duplicateOf ? "Copy saved. It has its own link to share with players." : "Hunt saved", 3500);
                 state.draft = null; openOrg();
             } catch (err) {
                 fail(String(err.message || err).toLowerCase().includes("permission")
