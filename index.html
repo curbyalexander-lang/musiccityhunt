@@ -1228,6 +1228,58 @@
             margin-left: 4px
         }
 
+        .post-cluster {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--ink);
+            color: #fff;
+            font: 800 13px Inter, system-ui, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 3px solid #fff;
+            box-shadow: 0 0 0 3px rgba(233, 169, 58, .7), 0 2px 6px rgba(0, 0, 0, .35)
+        }
+
+        .pop-list {
+            display: grid;
+            gap: 6px
+        }
+
+        .pop-item {
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+            width: 100%;
+            text-align: left;
+            padding: 5px;
+            border-radius: 8px
+        }
+
+        .pop-item:active {
+            background: #f4efe4
+        }
+
+        .pop-th {
+            flex: none;
+            width: 60px;
+            height: 45px;
+            border-radius: 6px;
+            background: #eee center/cover no-repeat
+        }
+
+        .pop-txt {
+            display: grid;
+            gap: 1px;
+            font-size: 12.5px;
+            min-width: 0
+        }
+
+        .pop-txt small {
+            color: var(--muted)
+        }
+
         .loc-btn {
             background: #fff;
             color: var(--ink);
@@ -2155,8 +2207,8 @@
         }
 
         .post-dot {
-            width: 16px;
-            height: 16px;
+            width: 20px;
+            height: 20px;
             border-radius: 50%;
             border: 2.5px solid #fff;
             box-shadow: 0 1px 4px rgba(0, 0, 0, .35)
@@ -3204,8 +3256,8 @@
             if (!SHOW_TILES) { el.classList.add("notiles"); return; }
             let lastLoad = 0, note = null;
             const watch = layer => layer.on("tileload", () => { lastLoad = Date.now(); if (note) { note.remove(); note = null; } });
-            const streetsMain = watch(L.tileLayer(TILE_URL, { attribution: TILE_ATTR, maxZoom: 20 }));
-            const streetsAlt = watch(L.tileLayer(STREET_ALT_URL, { attribution: STREET_ALT_ATTR, maxZoom: 20, maxNativeZoom: 19 }));
+            const streetsMain = watch(L.tileLayer(TILE_URL, { attribution: TILE_ATTR, maxZoom: 22, maxNativeZoom: 20 }));
+            const streetsAlt = watch(L.tileLayer(STREET_ALT_URL, { attribution: STREET_ALT_ATTR, maxZoom: 22, maxNativeZoom: 19 }));
             const streets = L.layerGroup([streetsMain]);
             // If the first street map refuses to load, switch to the backup source.
             let errs = 0, swapped = false;
@@ -3214,8 +3266,8 @@
                 if (++errs >= 3) { swapped = true; streets.clearLayers(); streets.addLayer(streetsAlt); }
             });
             const sat = L.layerGroup([
-                watch(L.tileLayer(SAT_URL, { attribution: SAT_ATTR, maxZoom: 20, maxNativeZoom: 19 })),
-                watch(L.tileLayer(LABELS_URL, { attribution: TILE_ATTR, maxZoom: 20 }))
+                watch(L.tileLayer(SAT_URL, { attribution: SAT_ATTR, maxZoom: 22, maxNativeZoom: 19 })),
+                watch(L.tileLayer(LABELS_URL, { attribution: TILE_ATTR, maxZoom: 22, maxNativeZoom: 20 }))
             ]);
             let box = null;
             const Toggle = L.Control.extend({
@@ -3252,7 +3304,7 @@
         }
         function ensureMap() {
             if (map) { setTimeout(() => { map.invalidateSize(); updateMapLayers(); }, 50); return; }
-            map = L.map("map", { zoomControl: false }).setView([36.1627, -86.7816], 11);
+            map = L.map("map", { zoomControl: false, maxZoom: 22 }).setView([36.1627, -86.7816], 11);
             addBaseLayers(map, $("#map"));
             if (!SHOW_TILES) {
                 const note = document.createElement("div");
@@ -3263,6 +3315,7 @@
             L.control.zoom({ position: "topright" }).addTo(map);
             stopLayer = L.layerGroup().addTo(map);
             postLayer = L.layerGroup().addTo(map);
+            map.on("zoomend", () => updateMapLayers());
             map.on("click", e => {
                 if (!TEST) return;
                 state.sim = { lat: e.latlng.lat, lng: e.latlng.lng, acc: 5, ts: Date.now() };
@@ -3289,10 +3342,37 @@
                 if (!SHOW_TILES) sm.bindTooltip(s.name.replace(/ \(.*\)/, ""), { permanent: true, direction: "right", offset: [14, -18], className: "stop-label" });
                 sm.bindPopup(`<div class="pop-nm">${esc(s.name)}</div><div class="pop-sub">${s.points} pts${s.task ? " · " + esc(s.task) : ""}<br>${counts[s.id] || 0} post${counts[s.id] === 1 ? "" : "s"} so far</div><a href="${dirUrl(s)}" target="_blank" rel="noopener">Directions ›</a>`);
             });
+            // Dots closer than about a fingertip on screen are drawn as one numbered circle.
+            // Tapping it lists those posts. Groups are recalculated every time the zoom changes.
+            const zoom = map.getZoom(), groups = [];
             state.posts.forEach(p => {
                 if (typeof p.lat !== "number" || !state.stopById[p.locId]) return;
-                const mk = L.marker([p.lat, p.lng], { icon: L.divIcon({ className: "", html: `<div class="post-dot" style="background:${userColor(p.username)}"></div>`, iconSize: [16, 16], iconAnchor: [8, 8] }) }).addTo(postLayer);
-                mk.bindPopup(`<div class="pop-ph" data-pop="${esc(p.id)}"></div><div class="pop-nm">${esc(p.username)}</div><div class="pop-sub">${esc(state.stopById[p.locId].name)} · ${ago(p.ts)}</div>${p.caption ? `<div style="margin-top:4px">${esc(p.caption)}</div>` : ""}`);
+                const pt = map.project([p.lat, p.lng], zoom);
+                const g = groups.find(g => g.pt.distanceTo(pt) < 26);
+                if (g) g.posts.push(p); else groups.push({ pt, posts: [p] });
+            });
+            groups.filter(g => g.posts.length > 1).forEach(g => {
+                const n = g.posts.length;
+                const lat = g.posts.reduce((a, p) => a + p.lat, 0) / n, lng = g.posts.reduce((a, p) => a + p.lng, 0) / n;
+                const mk = L.marker([lat, lng], { zIndexOffset: 800, icon: L.divIcon({ className: "", html: `<div class="post-cluster">${n}</div>`, iconSize: [32, 32], iconAnchor: [16, 16] }) }).addTo(postLayer);
+                const canZoom = zoom < map.getMaxZoom() - 1;
+                mk.bindPopup(`<div class="pop-nm">${n} posts here</div>
+                    ${canZoom ? `<button type="button" class="linkbtn" data-zoomin style="padding:2px 0 6px">Zoom in to spread them out ›</button>` : ""}
+                    <div class="pop-list">${g.posts.map(p => `<button type="button" class="pop-item" data-pid="${esc(p.id)}">
+                        <span class="pop-th" data-th="${esc(p.id)}"></span>
+                        <span class="pop-txt"><b>${esc(p.username)}</b><small>${esc(state.stopById[p.locId].name)} · ${ago(p.ts)}</small>${p.caption ? `<span>${esc(p.caption)}</span>` : ""}</span>
+                    </button>`).join("")}</div>`, { maxHeight: 280, minWidth: 230, autoPanPaddingTopLeft: L.point(12, 64), autoPanPaddingBottomRight: L.point(12, 60) });
+                mk.on("popupopen", ev => {
+                    const el = ev.popup.getElement();
+                    el.querySelectorAll("[data-th]").forEach(t => loadThumb(t.dataset.th).then(u => { if (u) t.style.backgroundImage = `url(${u})`; }));
+                    el.querySelectorAll("[data-pid]").forEach(b => b.onclick = () => openPhoto(state.posts.find(x => x.id === b.dataset.pid)));
+                    const zb = el.querySelector("[data-zoomin]");
+                    if (zb) zb.onclick = () => { map.closePopup(); map.setView([lat, lng], Math.min(map.getMaxZoom(), zoom + 3)); };
+                });
+            });
+            groups.filter(g => g.posts.length === 1).map(g => g.posts[0]).forEach(p => {
+                const mk = L.marker([p.lat, p.lng], { zIndexOffset: 800, icon: L.divIcon({ className: "", html: `<div class="post-dot" style="background:${userColor(p.username)}"></div>`, iconSize: [20, 20], iconAnchor: [10, 10] }) }).addTo(postLayer);
+                mk.bindPopup(`<div class="pop-ph" data-pop="${esc(p.id)}"></div><div class="pop-nm">${esc(p.username)}</div><div class="pop-sub">${esc(state.stopById[p.locId].name)} · ${ago(p.ts)}</div>${p.caption ? `<div style="margin-top:4px">${esc(p.caption)}</div>` : ""}`, { autoPanPaddingTopLeft: L.point(12, 64), autoPanPaddingBottomRight: L.point(12, 60) });
                 mk.on("popupopen", ev => {
                     const el = ev.popup.getElement().querySelector("[data-pop]");
                     loadThumb(p.id).then(u => { if (u && el) el.style.backgroundImage = `url(${u})`; });
@@ -3739,7 +3819,7 @@
             // Open the map on this stop, the home base or another stop. For a brand-new hunt
             // with no stops yet, open on the whole country and then move to where you are.
             const ref = s.lat != null ? [s.lat, s.lng] : home ? [home.lat, home.lng] : d.stops[0] ? [d.stops[0].lat, d.stops[0].lng] : null;
-            const sm = L.map("stopMap", { zoomControl: true });
+            const sm = L.map("stopMap", { zoomControl: true, maxZoom: 22 });
             if (ref) sm.setView(ref, s.lat != null ? 17 : 15); else sm.setView([39.5, -98.35], 4);
             addBaseLayers(sm, $("#stopMap"));
             // the hunt's other stops, for reference
